@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <UserSecretsId>471f09fc-beb2-4fca-b448-00c88ddbd9ac</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="appSettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="appSettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DynamicQuery" Version="1.0.3" />
+    <PackageReference Include="GenericProvisioningLib" Version="1.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
+    <PackageReference Include="MongoDB.Driver" Version="2.27.0" />
+    <PackageReference Include="ObjectDiffUtilsNg" Version="1.1.6" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.4.3" />
+    <PackageReference Include="ToolsV4-std" Version="1.1.76" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NoSqlModels\NoSqlModels.csproj" />
+  </ItemGroup>
+
+</Project>
