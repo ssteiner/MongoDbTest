@@ -3,9 +3,11 @@ using GenericProvisioningLib;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Linq;
+using MongoDbTest.Conventions;
 using MongoDbTest.Extensions;
 using NoSqlModels;
 using System.Runtime.CompilerServices;
@@ -21,7 +23,7 @@ internal class MongoDbContext
     {
         var settings = MongoClientSettings.FromConnectionString(connectionString);
         settings.ServerApi = new ServerApi(ServerApiVersion.V1);
-        settings.LinqProvider = MongoDB.Driver.Linq.LinqProvider.V3;
+        settings.LinqProvider = LinqProvider.V3;
 
         var mySettings = new MongoClientSettings()
         {
@@ -34,7 +36,8 @@ internal class MongoDbContext
 
         var pack = new ConventionPack
         {
-            new IgnoreExtraElementsConvention(true)
+            new IgnoreExtraElementsConvention(true),
+            new StringObjectIdGeneratorConvention()
         };
         ConventionRegistry.Register("My Solution Conventions", pack, t => true);
 
@@ -57,6 +60,10 @@ internal class MongoDbContext
         {
             classMap.AutoMap();
             classMap.UnmapMember(m => m.PhoneBooks);
+            classMap.MapProperty(x => x.PhoneBookIds)
+                .SetSerializer(
+                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
             //classMap.MapMember(h => h.Id).ShouldSerialize(null, null);
             //classMap.MapMember(h => h.YearBuilt).SetDefaultValue(1900);
         });
@@ -65,8 +72,25 @@ internal class MongoDbContext
             classMap.AutoMap();
             classMap.UnmapMember(m => m.Categories);
             classMap.UnmapMember(m => m.PhoneBooks);
+            classMap.MapProperty(m => m.NumberOfTelephoneNumbers);
+            classMap.MapProperty(x => x.ManagerId).SetSerializer(new StringSerializer(BsonType.ObjectId));
+            //classMap.MapProperty(x => x.Numbers[0].Number).SetSerializer(new StringSerializer(BsonType.ObjectId));
+
+            classMap.MapProperty(x => x.PhoneBookIds)
+                .SetSerializer(
+                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
+            classMap.MapProperty(x => x.CategoryIds)
+                .SetSerializer(
+                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
             //classMap.MapMember(h => h.Id).ShouldSerialize(null, null);
             //classMap.MapMember(h => h.YearBuilt).SetDefaultValue(1900);
+        });
+        BsonClassMap.RegisterClassMap<PhoneBookContactNumber>(classMap =>
+        {
+            classMap.AutoMap();
+            classMap.MapProperty(x => x.Id).SetSerializer(new StringSerializer(BsonType.ObjectId));
         });
 
         return await PerformDatabaseOperationAsync(async context =>
@@ -166,7 +190,7 @@ internal class MongoDbContext
         }, userInfo);
     }
 
-    public IOperationResult<T> GetObject<T>(Guid id, IUserInformation userInfo, bool includeDependencies = false,
+    public IOperationResult<T> GetObject<T>(string id, IUserInformation userInfo, bool includeDependencies = false,
         bool ignoreObjectAccessibility = false, bool ignorePermissions = false, bool includeCredentials = true)
         where T : class, IIdItem
     {
@@ -228,7 +252,7 @@ internal class MongoDbContext
         }, userInfo);
     }
 
-    public IOperationResult UpdateObject<T>(Guid id, DeltaBaseObject<T> update, IUserInformation userInfo, bool ignoreUpdateOfInternalFields = true)
+    public IOperationResult UpdateObject<T>(string id, DeltaBaseObject<T> update, IUserInformation userInfo, bool ignoreUpdateOfInternalFields = true)
         where T : class, IIdItem
     {
         return PerformDatabaseOperation(context =>
@@ -263,7 +287,7 @@ internal class MongoDbContext
         return result;
     }
 
-    public IOperationResult DeleteObject<T>(Guid id, IUserInformation userInfo)
+    public IOperationResult DeleteObject<T>(string id, IUserInformation userInfo)
         where T : class, IIdItem
     {
         return PerformDatabaseOperation(context =>
@@ -275,7 +299,7 @@ internal class MongoDbContext
         }, userInfo);
     }
 
-    private IOperationResult DeleteObject<T>(Guid id, MongoDatabaseContext context)
+    private IOperationResult DeleteObject<T>(string id, MongoDatabaseContext context)
         where T : class, IIdItem
     {
         var result = new GenericOperationResult();
@@ -313,8 +337,10 @@ internal class MongoDbContext
             //}
             else if (typeof(INamedItem).IsAssignableFrom(typeof(T)))
             {
-                var myItems = query as IMongoQueryable<INamedItem>;
-                query = FilterHelpers.FilterByNameGeneric(myItems, parameters) as IMongoQueryable<T>;
+                var myItems = query as IQueryable<INamedItem>;
+                query = FilterHelpers.FilterByNameGeneric(query, parameters);
+                //var filteredQuery = FilterHelpers.FilterByNameGeneric(myItems, parameters).Cast<T>();
+                //query = filteredQuery as IMongoQueryable<T>;
                 //var myItems = query as ILiteQueryable<INamedItem>;
                 //var myQuery = FilterHelpers.FilterByName(myItems, parameters);
                 //query = myQuery as ILiteQueryable<T>;
@@ -325,7 +351,12 @@ internal class MongoDbContext
             query = FilterHelpers.AppendGenericFilter(queryable, parameters, ref isSorted) as IMongoQueryable<T>;
             if (!isSorted)
             {
-                query = query.SortBy(nameof(INamedItem.Name), true); // default sorting by name
+                if (typeof(PhoneBookContact).IsAssignableFrom(typeof(T))) // phonebook contact
+                {
+                    query = query.SortBy(nameof(PhoneBookContact.LastName), true).ThenSortBy(nameof(PhoneBookContact.FirstName), true);
+                }
+                else
+                    query = query.SortBy(nameof(INamedItem.Name), true); // default sorting by name
             }
             result.Result = GeneratePagedListWithoutSorting(query, parameters);
             //result.Result = new SearchResults<T>
@@ -364,18 +395,21 @@ internal class MongoDbContext
             case PhoneBookContactSearchParameters phoneBookContactSearchParameters:
                 {
                     if (items is not IMongoQueryable<PhoneBookContact> query) return items;
+                    query = FilterHelpers.FilterPhoneBookContacts(query, phoneBookContactSearchParameters.Name, false, false);
+                    query = FilterHelpers.FilterPhoneBookContacts(query, phoneBookContactSearchParameters.Query);
                     if (phoneBookContactSearchParameters.CategoryIds?.Count > 0)
                     {
                         query = query.Where(x => x.CategoryIds.Any(x => phoneBookContactSearchParameters.CategoryIds.Contains(x)));
                     }
                     if (phoneBookContactSearchParameters.ManagerIds?.Count> 0)
                     {
-                        query = query.Where(x => x.ManagerId != null && phoneBookContactSearchParameters.ManagerIds.Contains(x.ManagerId.Value));
+                        query = query.Where(x => x.ManagerId != null && phoneBookContactSearchParameters.ManagerIds.Contains(x.ManagerId));
                     }
                     if (phoneBookContactSearchParameters.SecretaryIds?.Count > 0)
                     {
-                        query = query.Where(x => x.CategoryIds.Any(x => phoneBookContactSearchParameters.CategoryIds.Contains(x)));
+                        query = query.Where(x => x.SecretaryIds.Any(x => phoneBookContactSearchParameters.SecretaryIds.Contains(x)));
                     }
+                    query = FilterHelpers.FilterStringProperties(query, phoneBookContactSearchParameters);
                     return query as IMongoQueryable<T>;
                 }
         }
@@ -572,7 +606,7 @@ internal class MongoDbContext
 
     #region phonebook configuration
 
-    public IOperationResult AssociateWithCategory(Guid contactId, Guid categoryId, IUserInformation userInfo)
+    public IOperationResult AssociateWithCategory(string contactId, string categoryId, IUserInformation userInfo)
     {
         return PerformDatabaseOperation(context =>
         {
@@ -600,7 +634,7 @@ internal class MongoDbContext
         }, userInfo);
     }
 
-    public IOperationResult RemoveCategory(Guid contactId, Guid categoryId, IUserInformation userInfo)
+    public IOperationResult RemoveCategory(string contactId, string categoryId, IUserInformation userInfo)
     {
         return PerformDatabaseOperation(context =>
         {
@@ -730,6 +764,15 @@ internal class MongoDbContext
     }
 
     protected IOperationResult<T> ObjectNotFoundError<T>(Guid id) where T : class
+    {
+        return new GenericOperationResult<T>
+        {
+            ErrorMessage = GetTranslatedString(DatabaseErrors.ObjectNotFound, typeof(T).Name, id),
+            //ErrorType = ErrorType.ObjectNotFound
+        };
+    }
+
+    protected IOperationResult<T> ObjectNotFoundError<T>(string id) where T : class
     {
         return new GenericOperationResult<T>
         {

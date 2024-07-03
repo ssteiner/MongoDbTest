@@ -1,22 +1,21 @@
 ﻿using DynamicQuery;
 using GeneralTools;
 using GeneralTools.Extensions;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 using NoSqlModels;
-using System.Globalization;
 using System.Linq.Dynamic.Core;
 using System.Linq.Dynamic.Core.Exceptions;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace MongoDbTest;
 
 internal static class FilterHelpers
 {
-    internal static IMongoQueryable<T> FilterByNameGeneric<T>(IMongoQueryable<T> items, GenericSearchParameters parameters)
+    private const char spaceSplitter = ' ';
+
+    internal static IQueryable<T> FilterByNameGeneric<T>(IQueryable<T> items, GenericSearchParameters parameters)
         where T : INamedItem
     {
         if (!string.IsNullOrEmpty(parameters.Name))
@@ -44,6 +43,118 @@ internal static class FilterHelpers
                 var query = parameters.Query.ToLower();
                 items = items.Where(u => u.Name.ToLower().StartsWith(query));
             }
+        }
+        return items;
+    }
+
+    internal static IMongoQueryable<T> FilterByNameGeneric<T>(IMongoQueryable<T> items, GenericSearchParameters parameters)
+    {
+        var builder = Builders<T>.Filter;
+        if (!string.IsNullOrEmpty(parameters.Name))
+        {
+            if (parameters.Name.StartsWith('%'))
+            {
+                var query = parameters.Name.TrimStart('%').ToLower();
+                var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"{query}", RegexOptions.IgnoreCase));
+                items = items.Where(x => filter.Inject());
+                //items = items.Where(PredicateBuilder.ContainsPredicate<T>(nameof(INamedItem.Name), query));
+                //items = items.Where(x => x.Name.ToLower().Contains(query));
+            }
+            else
+            {
+                var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"^{parameters.Name}", RegexOptions.IgnoreCase));
+                items = items.Where(x => filter.Inject());
+                //var query = parameters.Name.ToLower();
+                //items = items.Where(PredicateBuilder.StartsWithPredicate<T>(nameof(INamedItem.Name), query));
+            }
+        }
+        if (!string.IsNullOrEmpty(parameters.Query))
+        {
+            if (parameters.Query.StartsWith("%"))
+            {
+                var query = parameters.Query.TrimStart('%').ToLower();
+                var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"{query}", RegexOptions.IgnoreCase));
+                items = items.Where(x => filter.Inject());
+                //items = items.Where(PredicateBuilder.ContainsPredicate<T>(nameof(INamedItem.Name), query));
+            }
+            else
+            {
+                var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"^{parameters.Query}", RegexOptions.IgnoreCase));
+                items = items.Where(x => filter.Inject());
+                //var query = parameters.Query.ToLower();
+                //items = items.Where(PredicateBuilder.StartsWithPredicate<T>(nameof(INamedItem.Name), query));
+            }
+        }
+        return items;
+    }
+
+    internal static IMongoQueryable<PhoneBookContact> FilterPhoneBookContacts(IMongoQueryable<PhoneBookContact> items, string query,
+        bool includeNumber = true, bool includeUserId = true)
+    {
+        string firstToken, secondToken = null;
+        if (string.IsNullOrEmpty(query))
+            return items;
+        query = query.Trim();
+        if (query == "*") // return all
+            return items;
+        if (query.Contains(' '))
+        {
+            var split = query.Split([spaceSplitter], 2);
+            firstToken = split[0].ToLower();
+            secondToken = split[1].ToLower();
+        }
+        else
+            firstToken = query.ToLower();
+        var useContainsSearch = query.StartsWith('%');
+        if (useContainsSearch)
+            firstToken = firstToken.TrimStart('%');
+        if (secondToken == null)
+        {
+            if (useContainsSearch)
+                return items.Where(u => (u.FirstName != null && u.FirstName.ToLower().Contains(firstToken))
+                                        || (u.LastName != null && u.LastName.ToLower().Contains(firstToken))
+                                        //|| (includeUserId && u.UserId != null && u.UserId.ToLower().Contains(firstToken))
+                                        || (includeNumber && u.Numbers.Select(x => x.Number).Any(x => x.Contains(firstToken))));
+            return items.Where(u => (u.FirstName != null && u.FirstName.ToLower().StartsWith(firstToken))
+                                    || (u.LastName != null && u.LastName.ToLower().StartsWith(firstToken))
+                                    //|| (includeUserId && u.UserId != null && u.UserId.ToLower().StartsWith(firstToken))
+                                    || (includeNumber && u.Numbers.Select(x => x.Number).Any(x => x.StartsWith(firstToken))));
+        }
+
+        if (useContainsSearch)
+            return items.Where(u => (u.FirstName != null && u.FirstName.ToLower().Contains(firstToken) && u.LastName != null && u.LastName.ToLower().Contains(secondToken))
+                                    || (u.FirstName != null && u.FirstName.ToLower().Contains(secondToken) && u.LastName != null && u.LastName.ToLower().Contains(firstToken))
+                                    || (u.FirstName != null && u.FirstName.ToLower().Contains(query) || u.LastName != null && u.LastName.ToLower().Contains(query))
+                                    || (includeNumber && u.Numbers.Select(x => x.Number).Any(x => x.Contains(query))));
+        return items.Where(u => (u.FirstName != null && u.FirstName.ToLower().StartsWith(firstToken) && u.LastName != null && u.LastName.ToLower().StartsWith(secondToken))
+                                || (u.FirstName != null && u.FirstName.ToLower().StartsWith(secondToken) && u.LastName != null && u.LastName.ToLower().StartsWith(firstToken))
+                                || (u.FirstName != null && u.FirstName.ToLower().StartsWith(query)) || (u.LastName != null && u.LastName.ToLower().StartsWith(query))
+                                || (includeNumber && u.Numbers.Select(x => x.Number).Any(x => x.StartsWith(query))));
+    }
+
+    internal static IMongoQueryable<T> FilterStringProperties<T, K>(IMongoQueryable<T> items, K parameters) where K: GenericSearchParameters
+    {
+        var stringProperties = typeof(K)
+            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(x => x.PropertyType == typeof(string))
+            .ToList();
+        var builder = Builders<T>.Filter;
+        foreach (var prop in stringProperties)
+        {
+            if (prop.GetValue(parameters) is string strValue && !string.IsNullOrEmpty(strValue))
+            {
+                if (strValue.StartsWith("%")) // contains
+                {
+                    var query = strValue.TrimStart('%');//.ToLower();
+                    var filter = builder.Regex(prop.Name, new Regex($"{query}", RegexOptions.IgnoreCase));
+                    items = items.Where(x => filter.Inject());
+                }
+                else
+                {
+                    var filter = builder.Regex(prop.Name, new Regex($"^{strValue}", RegexOptions.IgnoreCase));
+                    items = items.Where(x => filter.Inject());
+                }
+            }  
         }
         return items;
     }
@@ -88,6 +199,22 @@ internal static class FilterHelpers
             items = items.OrderByDescending(orderExpression);
         else
             items = items.OrderBy(orderExpression);
+        return items;
+    }
+
+    internal static IMongoQueryable<T> ThenSortBy<T>(this IMongoQueryable<T> items, string sortBy, bool? sortAscending)
+    {
+        if (items is IOrderedMongoQueryable<T> ordered)
+        {
+            ParameterExpression pe = Expression.Parameter(typeof(T), "t");
+            MemberExpression me = Expression.Property(pe, sortBy);
+            Expression conversion = Expression.Convert(me, typeof(object));
+            Expression<Func<T, object>> orderExpression = Expression.Lambda<Func<T, object>>(conversion, [pe]);
+            if (sortAscending == false)
+                items = ordered.ThenByDescending(orderExpression);
+            else
+                items = ordered.ThenBy(orderExpression);
+        }
         return items;
     }
 
@@ -254,9 +381,6 @@ internal static class FilterHelpers
     //                switch (p.FieldOperator)
     //                {
     //                    case ComparisonOperator.EqualTo:
-
-
-
     //                        filters.Add(builder.Eq(p.FieldName, p.FieldValue));
     //                        break;
     //                    case ComparisonOperator.NotEqualTo:

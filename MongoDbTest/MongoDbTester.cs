@@ -1,6 +1,7 @@
 ﻿using GeneralTools.Extensions;
 using GenericProvisioningLib;
 using Microsoft.Extensions.Configuration;
+using MongoDB.Bson;
 using NoSqlModels;
 
 namespace MongoDbTest;
@@ -146,64 +147,68 @@ internal class MongoDbTester
         List<IIdItem> rollbackObjects = [];
         PhoneBook pb1 = new()
         {
-            Id = Guid.NewGuid(),
+            //Id = Guid.NewGuid(),
             Name = "Phonebook 1"
         };
 
         PhoneBook pb2 = new()
         {
-            Id = Guid.NewGuid(),
+            //Id = Guid.NewGuid(),
             Name = "Phonebook 2"
         };
 
         PhoneBookCategory category1 = new()
         {
-            Id = Guid.NewGuid(),
+            //Id = Guid.NewGuid(),
             Name = "Category1"
         };
         PhoneBookCategory category2 = new()
         {
-            Id = Guid.NewGuid(),
+            //Id = Guid.NewGuid(),
             Name = "Category2"
         };
 
         PhoneBookContact contact1 = new()
         {
-            Id = Guid.NewGuid(),
-            Name = "contact 1", 
+            //Id = Guid.NewGuid(),
+            FirstName = "contact 1",
+            LastName = "Grossmeister",
             Location = "Bern",
             Numbers = [
-                    new PhoneBookContactNumber { Id = Guid.NewGuid(), Number = "+41587770001", Type = NumberType.Office},
-                    new PhoneBookContactNumber { Id = Guid.NewGuid(), Number = "+41767770002", Type = NumberType.Mobile}
+                    new PhoneBookContactNumber { /*Id = Guid.NewGuid(), */ Id = ObjectId.GenerateNewId().ToString(), Number = "+41587770001", Type = NumberType.Office },
+                    new PhoneBookContactNumber { /*Id = Guid.NewGuid(), */ Id = ObjectId.GenerateNewId().ToString(), Number = "+41767770002", Type = NumberType.Mobile }
                     ]
         };
         PhoneBookContact contact2 = new()
         {
-            Id = Guid.NewGuid(),
-            Name = "contact 2",
+            //Id = Guid.NewGuid(),
+            FirstName = "contact 2",
+            LastName = "Meister",
             Location = "Bern",
             Numbers = [
-                new PhoneBookContactNumber { Id = Guid.NewGuid(), Number = "+41587770003", Type = NumberType.Office},
-                new PhoneBookContactNumber { Id = Guid.NewGuid(), Number = "+41767770004", Type = NumberType.Mobile}
+                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(),  Number = "+41587770003", Type = NumberType.Office },
+                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(), Number = "+41767770004", Type = NumberType.Mobile }
                 ]
         };
         PhoneBookContact manager = new()
         {
-            Id = Guid.NewGuid(),
-            Name = "manager",
+            //Id = Guid.NewGuid(),
+            FirstName = "manager",
+            LastName = "Meier",
             Location = "Züri",
             Numbers = [
-                new PhoneBookContactNumber { Id = Guid.NewGuid(), Number = "+41587770005", Type = NumberType.Office},
+                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(), Number = "+41587770005", Type = NumberType.Office },
             ]
         };
 
         PhoneBookContact secretary = new()
         {
-            Id = Guid.NewGuid(),
-            Name = "secretary",
+            //Id = Guid.NewGuid(),
+            FirstName = "secretary", 
+            LastName = "Müller",
             Location = "Züri",
             Numbers = [
-                new PhoneBookContactNumber { Id = Guid.NewGuid(), Number = "+41587770006", Type = NumberType.Office},
+                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(),  Number = "+41587770006", Type = NumberType.Office },
             ]
         };
 
@@ -217,8 +222,8 @@ internal class MongoDbTester
             addRes = db.AddObject(pb2, userInfo);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(pb2);
-            category1.PhoneBookIds = [category1.Id];
-            category2.PhoneBookIds = [category2.Id];
+            category1.PhoneBookIds = [pb1.Id];
+            category2.PhoneBookIds = [pb2.Id];
 
             addRes = db.AddObject(category1, userInfo);
             if (addRes.IsSuccess)
@@ -326,21 +331,25 @@ internal class MongoDbTester
         }
         finally
         {
-
             foreach (var rollbackObject in rollbackObjects)
             {
+                IOperationResult deleteRes = null;
                 if (rollbackObject is PhoneBook pb)
                 {
-                    var deletePbRes = db.DeleteObject<PhoneBook>(pb.Id, userInfo);
+                    deleteRes = db.DeleteObject<PhoneBook>(pb.Id, userInfo);
                 }
                 else if (rollbackObject is PhoneBookCategory pbCat)
                 {
-                    var deleteCatRes = db.DeleteObject<PhoneBookCategory>(pbCat.Id, userInfo);
+                    deleteRes = db.DeleteObject<PhoneBookCategory>(pbCat.Id, userInfo);
                 }
                 else if (rollbackObject is PhoneBookContact pbContact)
                 {
-                    var deleteContactRes = db.DeleteObject<PhoneBookContact>(pbContact.Id, userInfo);
+                    deleteRes = db.DeleteObject<PhoneBookContact>(pbContact.Id, userInfo);
                 }
+                if (deleteRes.IsSuccess)
+                    Log($"Successfully deleted {rollbackObject.GetType().Name} {rollbackObject.Id}", 4);
+                else
+                    Log($"Unable to delete {rollbackObject.GetType().Name} {rollbackObject.Id}: {deleteRes}", 2);
             }
         }
     }
@@ -348,11 +357,11 @@ internal class MongoDbTester
     private async Task ContactSearchTest(PhoneBookCategory category1, PhoneBookCategory category2, PhoneBookContact contact1, PhoneBookContact contact2,
         PhoneBookContact manager, PhoneBookContact secretary)
     {
-        PhoneBookContactSearchParameters searchParameters = new()
+        PhoneBookContactSearchParameters searchParameters = new() // everything starting with 'contact', order descending
         {
             Query = "contact", 
             SortAscending = false, 
-            SortBy = nameof(PhoneBookCategory.Name)
+            SortBy = nameof(PhoneBookContact.FirstName)
         };
         var searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
         if (searchRes.IsSuccess)
@@ -363,16 +372,16 @@ internal class MongoDbTester
             }
             else
             {
-                if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.Name}", 2);
+                if (searchRes.Result.Results[0].Id != contact2.Id)
+                    Log($"Sort didn't work, first item in't {contact2.FirstName}", 2);
             }
         }
 
-        searchParameters = new()
+        searchParameters = new() // all, sort ascending
         {
             Query = null,
             SortAscending = true,
-            SortBy = nameof(PhoneBookCategory.Name)
+            SortBy = nameof(PhoneBookContact.FirstName)
         };
         searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
         if (searchRes.IsSuccess)
@@ -383,8 +392,8 @@ internal class MongoDbTester
             }
             else
             {
-                if (searchRes.Result.Results[0].Id != secretary.Id)
-                    Log($"Sort didn't work, first item in't {secretary.Name}", 2);
+                if (searchRes.Result.Results[0].Id != contact1.Id)
+                    Log($"Sort didn't work, first item in't {secretary.FirstName}", 2);
             }
         }
 
@@ -402,7 +411,73 @@ internal class MongoDbTester
             }
             else
             {
+                if (!searchRes.Result.Results.All(x => x.Location == searchParameters.Location))
+                    Log($"Search didn't work, not all results have location {searchParameters.Location}", 2);
+            }
+        }
 
+        searchParameters = new() // < 2 numbers
+        {
+            SearchParameters = [new GenericSearchParameter
+            {
+                FieldName = nameof(PhoneBookContact.NumberOfTelephoneNumbers),
+                FieldOperator = ComparisonOperator.LessThan, 
+                FieldValue = 2
+            }]
+        };
+        searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (searchRes.Result.Results.Count != 2)
+            {
+                Log($"Not all contacts, expected: 2, received {searchRes.Result.Results.Count}", 2);
+            }
+            else
+            {
+                if (!searchRes.Result.Results.All(x => x.NumberOfTelephoneNumbers < 2))
+                    Log($"Not all contacts have less than 2 numbers", 2);
+            }
+        }
+
+        searchParameters = new() // >= 2 numbers
+        {
+            SearchParameters = [new GenericSearchParameter
+            {
+                FieldName = nameof(PhoneBookContact.NumberOfTelephoneNumbers),
+                FieldOperator = ComparisonOperator.MoreThanOrEqualTo,
+                FieldValue = 2
+            }]
+        };
+        searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (searchRes.Result.Results.Count != 2)
+            {
+                Log($"Not all contacts, expected: 2, received {searchRes.Result.Results.Count}", 2);
+            }
+            else
+            {
+                if (!searchRes.Result.Results.All(x => x.NumberOfTelephoneNumbers >= 2))
+                    Log($"Not all contacts returned have >= 2 numbers", 2);
+            }
+        }
+
+        string number = "+41587770001";
+        searchParameters = new()
+        {
+            Query = number
+        };
+        searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (searchRes.Result.Results.Count != 1)
+            {
+                Log($"Not all contacts, expected: 1, received {searchRes.Result.Results.Count}", 2);
+            }
+            else
+            {
+                if (!searchRes.Result.Results[0].Numbers.Any(x => x.Number == number))
+                    Log($"Search didn't pick the contact with number {number}", 2);
             }
         }
 
@@ -420,9 +495,10 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.Name}", 2);
+                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
             }
         }
+
         searchParameters = new()
         {
             SecretaryIds = [secretary.Id],
@@ -438,7 +514,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.Name}", 2);
+                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
             }
         }
 
@@ -459,7 +535,28 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.Name}", 2);
+                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
+            }
+        }
+
+        searchParameters = new PhoneBookContactSearchParameters()
+        {
+            SearchParameters =
+            [ // gets us contact 1
+                new() { FieldName = nameof(PhoneBookContact.ManagerId), FieldOperator = ComparisonOperator.IsNotEmpty}
+            ]
+        };
+        searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (searchRes.Result.Results.Count != 3)
+            {
+                Log($"Not all contacts, expected: 3, received {searchRes.Result.Results.Count}", 2);
+            }
+            else
+            {
+                if (!searchRes.Result.Results.All(x => x.ManagerId == null))
+                    Log($"Sort didn't work, not all items have an empty ManagerId", 2);
             }
         }
 
@@ -484,10 +581,9 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.Name}", 2);
+                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
             }
         }
-
     }
 
     private async Task SearchTest(PhoneBookCategory category1, PhoneBookCategory category2, PhoneBook pb1, PhoneBook pb2)
