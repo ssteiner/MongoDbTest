@@ -128,7 +128,7 @@ internal class MongoDbContext
         };
         if (!string.IsNullOrEmpty(login))
             settings.Credential = new MongoCredential(null, new MongoInternalIdentity(databaseName, login), new PasswordEvidence(password));
-        settings.LinqProvider = MongoDB.Driver.Linq.LinqProvider.V3;
+        settings.LinqProvider = LinqProvider.V3;
         client = new MongoClient(settings);
         this.databaseName = databaseName;
     }
@@ -218,6 +218,67 @@ internal class MongoDbContext
             }
             else
                 return ObjectNotFoundError<T>(id);
+            return result;
+        }, userInfo);
+    }
+
+    public IOperationResult<PhoneBookContact> GetContactWithManager(string id, IUserInformation userInfo)
+    {
+        return PerformDatabaseOperation(context =>
+        {
+            var result = new GenericOperationResult<PhoneBookContact>();
+            var col = context.AccessibleObjects<PhoneBookContact>(false);
+            col = col.Join(col, contact => contact.ManagerId, manager => manager.Id, (contact, manager) => new PhoneBookContact
+                { Id = contact.Id, FirstName = contact.FirstName, ManagerId = contact.ManagerId, Manager = manager });
+
+            //col = col.Join(col, contact => contact.SecretaryIds, secretary => secretary.Id, (contact, secretary) => contact);
+
+            var item = col.Where(u => u.Id == id).FirstOrDefault();
+            if (item != null)
+            {
+                //result.Result = item.FromDbObject(includeDependencies, includeCredentials);
+                result.Result = item;
+                result.IsSuccess = true;
+            }
+            else
+                return ObjectNotFoundError<PhoneBookContact>(id);
+            return result;
+        }, userInfo);
+    }
+
+    private PhoneBookContact ProjectManager(PhoneBookContact contact, PhoneBookContact manager)
+    {
+        contact.Manager = manager;
+        return contact;
+    }
+
+    public IOperationResult<PhoneBookCategory> GetCategory(string id, IUserInformation userInfo, bool includeDependencies = true, 
+        bool ignoreObjectAccessibility = false)
+    {
+        return PerformDatabaseOperation(context =>
+        {
+            var result = new GenericOperationResult<PhoneBookCategory>();
+            var col = context.AccessibleObjects<PhoneBookCategory>(!ignoreObjectAccessibility);
+
+
+            var phonebooks = context.AccessibleObjects<PhoneBook>(false);
+
+
+            //col.Join(phonebooks, cat => cat.Id, pb => pb.Id, (cat, pb) => new PhoneBookCategory { Id = pb.Id, Name = pb.Name, PhoneBooks = } )
+
+
+            //if (includeDependencies)
+            //    col = IncludeDependencies(col);
+
+            var item = col.Where(u => u.Id == id).FirstOrDefault();
+            if (item != null)
+            {
+                //result.Result = item.FromDbObject(includeDependencies, includeCredentials);
+                result.Result = item;
+                result.IsSuccess = true;
+            }
+            else
+                return ObjectNotFoundError<PhoneBookCategory>(id);
             return result;
         }, userInfo);
     }

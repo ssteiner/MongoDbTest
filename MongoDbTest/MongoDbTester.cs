@@ -291,6 +291,10 @@ internal class MongoDbTester
             addRes = db.AddObject(contact2, userInfo);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(contact2);
+
+
+            var getFullRes = db.GetContactWithManager(contact1.Id, userInfo);
+
             var contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo);
             contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo);
 
