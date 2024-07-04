@@ -93,9 +93,6 @@ internal static class DatabaseExtensions
         return definition.Set(propertyName, newValue);
     }
 
-
-
-
     public static List<string> GetDependencyProperties(this Type t)
     {
         return t.GetProperties().Where(prop => prop.IsDefined(typeof(DependencyFieldAttribute), true))
@@ -103,5 +100,4 @@ internal static class DatabaseExtensions
             .Select(x => x.Name)
             .ToList();
     }
-
 }

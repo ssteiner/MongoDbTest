@@ -33,7 +33,7 @@ internal static class FilterHelpers
         }
         if (!string.IsNullOrEmpty(parameters.Query))
         {
-            if (parameters.Query.StartsWith("%"))
+            if (parameters.Query.StartsWith('%'))
             {
                 var query = parameters.Query.TrimStart('%').ToLower();
                 items = items.Where(u => u.Name.ToLower().Contains(query));
@@ -70,7 +70,7 @@ internal static class FilterHelpers
         }
         if (!string.IsNullOrEmpty(parameters.Query))
         {
-            if (parameters.Query.StartsWith("%"))
+            if (parameters.Query.StartsWith('%'))
             {
                 var query = parameters.Query.TrimStart('%').ToLower();
                 var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"{query}", RegexOptions.IgnoreCase));
@@ -143,7 +143,7 @@ internal static class FilterHelpers
         {
             if (prop.GetValue(parameters) is string strValue && !string.IsNullOrEmpty(strValue))
             {
-                if (strValue.StartsWith("%")) // contains
+                if (strValue.StartsWith('%')) // contains
                 {
                     var query = strValue.TrimStart('%');//.ToLower();
                     var filter = builder.Regex(prop.Name, new Regex($"{query}", RegexOptions.IgnoreCase));

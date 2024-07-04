@@ -19,6 +19,9 @@ public class PhoneBookContact : IIdItem
     public string ManagerId { get; set; }
 
     [DependencyField]
+    public PhoneBookContact Manager { get; set; }
+
+    [DependencyField]
     public List<PhoneBookCategory> Categories { get; set; }
 
     public List<string> CategoryIds { get; set; } = [];
