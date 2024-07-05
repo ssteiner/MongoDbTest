@@ -3,7 +3,7 @@
 namespace MongoDbEntitiesTest.DbModels;
 
 [Collection("phoneBooks")]
-internal class PhoneBook : BaseNamedEntity
+public class PhoneBook : BaseNamedEntity
 {
     public string Description { get; set; }
 }

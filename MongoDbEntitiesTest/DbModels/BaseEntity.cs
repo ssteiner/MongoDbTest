@@ -4,7 +4,7 @@ using NoSqlModels;
 
 namespace MongoDbEntitiesTest.DbModels;
 
-internal class BaseEntity: IEntity, IIdItem, ICreatedOn, IModifiedOn
+public class BaseEntity: IEntity, IIdItem, ICreatedOn, IModifiedOn
 {
     public string Id { get; set; }
 
@@ -19,7 +19,7 @@ internal class BaseEntity: IEntity, IIdItem, ICreatedOn, IModifiedOn
         => string.IsNullOrEmpty(Id);
 }
 
-internal class BaseNamedEntity: BaseEntity, INamedItem
+public class BaseNamedEntity: BaseEntity, INamedItem
 {
     public string Name { get; set; }
 }

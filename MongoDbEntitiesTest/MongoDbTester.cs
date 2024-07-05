@@ -187,7 +187,14 @@ internal class MongoDbTester
 
             addRes = await db.AddObject(contact1, userInfo);
             if (addRes.IsSuccess)
+            {
                 rollbackObjects.Add(contact1);
+                addRes = await db.AddSecretary(contact1.Id, secretary.Id, userInfo).ConfigureAwait(false);
+                if (addRes.IsSuccess)
+                {
+                    var gRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo);
+                }
+            }
             addRes = await db.AddObject(contact2, userInfo);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(contact2);
@@ -198,7 +205,7 @@ internal class MongoDbTester
             var contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo);
             contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo);
 
-            var associateRes = db.AssociateWithCategory(contact1.Id, category1.Id, userInfo);
+            var associateRes = await db.AssociateWithCategory(contact1.Id, category1.Id, userInfo).ConfigureAwait(false);
             if (associateRes.IsSuccess)
             {
                 contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true);
@@ -212,8 +219,8 @@ internal class MongoDbTester
             }
             //categoryRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo, true);
 
-            associateRes = db.AssociateWithCategory(contact1.Id, category2.Id, userInfo);
-            associateRes = db.AssociateWithCategory(contact2.Id, category2.Id, userInfo);
+            associateRes = await db.AssociateWithCategory(contact1.Id, category2.Id, userInfo);
+            associateRes = await db.AssociateWithCategory(contact2.Id, category2.Id, userInfo);
 
             contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true);
             contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);

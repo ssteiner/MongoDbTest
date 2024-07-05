@@ -4,7 +4,7 @@ using NoSqlModels;
 namespace MongoDbEntitiesTest.DbModels;
 
 [Collection("phoneBookContacts")]
-internal class PhoneBookContact : BaseEntity
+public class PhoneBookContact : BaseEntity
 {
     public string FirstName { get; set; }
 
@@ -16,15 +16,18 @@ internal class PhoneBookContact : BaseEntity
     public List<PhoneBookContactNumber> Numbers { get; set; }
 
     [DependencyField]
+
+    public Many<PhoneBookContact, PhoneBookContact> Secretary { get; set; }
+
     public List<string> SecretaryIds { get; set; }
 
     public string ManagerId { get; set; }
 
     [DependencyField]
-    public PhoneBookContact Manager { get; set; }
+    public One<PhoneBookContact> Manager { get; set; }
 
     [DependencyField]
-    public List<PhoneBookCategory> Categories { get; set; }
+    public Many<PhoneBookCategory, PhoneBookContact> Categories { get; set; }
 
     public List<string> CategoryIds { get; set; } = [];
 
@@ -34,4 +37,10 @@ internal class PhoneBookContact : BaseEntity
     public List<string> PhoneBookIds { get; set; } = [];
 
     public int NumberOfTelephoneNumbers => Numbers?.Count ?? 0;
+
+    public PhoneBookContact()
+    {
+        this.InitOneToMany(() => Categories);
+        this.InitOneToMany(() => Secretary);
+    }
 }
