@@ -59,7 +59,7 @@ internal class MongoDbContext
         BsonClassMap.RegisterClassMap<PhoneBookCategory>(classMap =>
         {
             classMap.AutoMap();
-            classMap.UnmapMember(m => m.PhoneBooks);
+            //classMap.UnmapMember(m => m.PhoneBooks);
             classMap.MapProperty(x => x.PhoneBookIds)
                 .SetSerializer(
                     new EnumerableInterfaceImplementerSerializer<List<string>, string>(
@@ -70,12 +70,17 @@ internal class MongoDbContext
         BsonClassMap.RegisterClassMap<PhoneBookContact>(classMap =>
         {
             classMap.AutoMap();
+            //classMap.UnmapMember(m => m.Secretary);
             classMap.UnmapMember(m => m.Categories);
             classMap.UnmapMember(m => m.PhoneBooks);
             classMap.MapProperty(m => m.NumberOfTelephoneNumbers);
             classMap.MapProperty(x => x.ManagerId).SetSerializer(new StringSerializer(BsonType.ObjectId));
             //classMap.MapProperty(x => x.Numbers[0].Number).SetSerializer(new StringSerializer(BsonType.ObjectId));
 
+            classMap.MapProperty(x => x.SecretaryIds)
+                .SetSerializer(
+                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
             classMap.MapProperty(x => x.PhoneBookIds)
                 .SetSerializer(
                     new EnumerableInterfaceImplementerSerializer<List<string>, string>(
@@ -228,8 +233,52 @@ internal class MongoDbContext
         {
             var result = new GenericOperationResult<PhoneBookContact>();
             var col = context.AccessibleObjects<PhoneBookContact>(false);
+
             col = col.Join(col, contact => contact.ManagerId, manager => manager.Id, (contact, manager) => new PhoneBookContact
                 { Id = contact.Id, FirstName = contact.FirstName, ManagerId = contact.ManagerId, Manager = manager });
+
+            //var myJoin = col.GroupJoin<PhoneBookContact, PhoneBookContact, string, PhoneBookContact>(col, contact => contact.SecretaryIds, secretary => secretary.Id, (contact, secretary) => new PhoneBookContact { });
+
+            //col = col.Join(col, contact => contact.ManagerId, manager => manager.Id, (contact, manager) => new { PhoneBookContact = contact, Manager = manager });
+
+            var contacts = context.GetCollection<BsonDocument>(GetCollectionName<PhoneBookContact>()).AsQueryable();
+
+            //var myCol = contacts.Join(contacts, contact => contact["ManagerId"], manager => manager["_id"], new Func<BsonDocument, TInner, TResult> )
+
+
+            var blub = context.GetCollection<PhoneBookContact>()
+                .Aggregate()
+                .Match(u => u.Id == id)
+                .Lookup(GetCollectionName<PhoneBookContact>(), nameof(PhoneBookContact.ManagerId), "_id", nameof(PhoneBookContact.Manager))
+                .Unwind(nameof(PhoneBookContact.Manager))
+                .Lookup(GetCollectionName<PhoneBookContact>(), nameof(PhoneBookContact.SecretaryIds), "_id", nameof(PhoneBookContact.Secretary))
+                .As<PhoneBookContact>()
+                .FirstOrDefault();
+
+            var myItem = context.GetCollection<PhoneBookContact>()
+                .Aggregate()
+                .Match(u => u.Id == id)
+                .Lookup(GetCollectionName<PhoneBookContact>(), nameof(PhoneBookContact.ManagerId), "_id", nameof(PhoneBookContact.Manager))
+                .Unwind(nameof(PhoneBookContact.Manager))
+                .As<PhoneBookContact>()
+                .FirstOrDefault();
+
+            var json = myItem.ToJson();
+
+            var myItems = context.GetCollection<PhoneBookContact>()
+                .Aggregate()
+                .Match(u => u.Id == id)
+                .Lookup(GetCollectionName<PhoneBookContact>(), nameof(PhoneBookContact.SecretaryIds), "_id", nameof(PhoneBookContact.Secretary))
+                .As<PhoneBookContact>()
+                .FirstOrDefault();
+
+            json = myItems.ToJson();
+
+            //.Lookup<PhoneBookContact, PhoneBookContact>(GetCollectionName<PhoneBookContact>(), u => u.ManagerId, u => u.Id, null);
+
+            //col.GroupJoin(col, contact => contact.Id, secretary => secretary.id)
+
+            var test = col.SelectMany(r => r.Categories).ToList();
 
             //col = col.Join(col, contact => contact.SecretaryIds, secretary => secretary.Id, (contact, secretary) => contact);
 
@@ -260,8 +309,14 @@ internal class MongoDbContext
             var result = new GenericOperationResult<PhoneBookCategory>();
             var col = context.AccessibleObjects<PhoneBookCategory>(!ignoreObjectAccessibility);
 
-
             var phonebooks = context.AccessibleObjects<PhoneBook>(false);
+
+            var myItem = context.GetCollection<PhoneBookCategory>()
+                .Aggregate()
+                .Match(u => u.Id == id)
+                .Lookup(GetCollectionName<PhoneBook>(), nameof(PhoneBookCategory.PhoneBookIds), "_id", nameof(PhoneBookCategory.PhoneBooks))
+                .As<PhoneBookCategory>()
+                .FirstOrDefault();
 
 
             //col.Join(phonebooks, cat => cat.Id, pb => pb.Id, (cat, pb) => new PhoneBookCategory { Id = pb.Id, Name = pb.Name, PhoneBooks = } )

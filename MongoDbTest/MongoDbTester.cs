@@ -223,7 +223,7 @@ internal class MongoDbTester
             if (addRes.IsSuccess)
                 rollbackObjects.Add(pb2);
             category1.PhoneBookIds = [pb1.Id];
-            category2.PhoneBookIds = [pb2.Id];
+            category2.PhoneBookIds = [pb2.Id, pb1.Id];
 
             addRes = db.AddObject(category1, userInfo);
             if (addRes.IsSuccess)
@@ -283,7 +283,7 @@ internal class MongoDbTester
                 rollbackObjects.Add(secretary);
 
             contact1.ManagerId = manager.Id;
-            contact1.SecretaryIds = [secretary.Id];
+            contact1.SecretaryIds = [secretary.Id, manager.Id];
 
             addRes = db.AddObject(contact1, userInfo);
             if (addRes.IsSuccess)
@@ -292,8 +292,9 @@ internal class MongoDbTester
             if (addRes.IsSuccess)
                 rollbackObjects.Add(contact2);
 
-
             var getFullRes = db.GetContactWithManager(contact1.Id, userInfo);
+
+            var getFullCategoryRes = db.GetCategory(category2.Id, userInfo, true);
 
             var contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo);
             contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo);
