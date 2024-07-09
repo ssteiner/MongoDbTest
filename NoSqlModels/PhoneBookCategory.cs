@@ -1,10 +1,12 @@
 ﻿namespace NoSqlModels;
 
-public class PhoneBookCategory : IIdItem, INamedItem
+public class PhoneBookCategory : IIdItem, INamedItem, IDescriptionItem
 {
     public string Id { get; set; }
 
     public string Name { get; set; }
+
+    public string Description { get; set; }
 
     [DependencyField]
     public List<PhoneBook> PhoneBooks { get; set; }

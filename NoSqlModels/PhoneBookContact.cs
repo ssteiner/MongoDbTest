@@ -8,6 +8,8 @@ public class PhoneBookContact : IIdItem
 
     public string LastName { get; set; }
 
+    public string UserId { get; set; }
+
     public string Location { get; set; }
 
     [DependencyField]
@@ -51,6 +53,8 @@ public enum NumberType { Office, Mobile, Home }
 public class PhoneBookContactSearchParameters : GenericSearchParameters
 {
     public string Location { get; set; }
+
+    public string Number { get; set; }
 
     public List<string> CategoryIds { get; set; }
 
