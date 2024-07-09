@@ -143,7 +143,6 @@ internal class MongoDbTester
 
     internal async Task RunPhonebookTests()
     {
-        var userInfo = new GenericTenantUser { UserId = "admin" };
         List<IIdItem> rollbackObjects = [];
         PhoneBook pb1 = new()
         {
@@ -268,6 +267,27 @@ internal class MongoDbTester
                             Log($"Delta update of category {category1} didn't take, expected: {deltaUpdate.Data.Name}, received: {catRes.Result.Name}", 2);
                     }
                 }
+                var newDescription = "hello world";
+                ExtendedMassUpdateParameters<PhoneBookCategory> massUpdates = new()
+                {
+                    Ids = [category1.Id, category2.Id],
+                    IncludedProperties = [nameof(PhoneBookCategory.Description)],
+                    TemplateObject = new PhoneBookCategory { Description = newDescription },
+                    Values = new Dictionary<string, object> { { nameof(PhoneBookCategory.Description), newDescription } }
+                };
+
+                var massUpdateRes = db.BulkUpdateObject(massUpdates, userInfo);
+                if (massUpdateRes.IsSuccess)
+                {
+                    var checkRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
+                    if (checkRes.IsSuccess)
+                    {
+                        if (checkRes.Result.Description == newDescription)
+                            Log($"Successfully validated bulk update of {category1.GetType().Name}", 4);
+                        else
+                            Log($"Unable to validate bulk update of {category1.GetType().Name}", 2);
+                    }
+                }
             }
 
             addRes = db.AddObject(category2, userInfo);
@@ -329,6 +349,22 @@ internal class MongoDbTester
                 updateRes = db.UpdateObject(tempContact2, userInfo);
                 contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
             }
+
+            List<string> idsToDelete = [category1.Id, category2.Id];
+            var bulkDeletRes = db.BulkDelete<PhoneBookCategory>(idsToDelete, userInfo);
+            if (bulkDeletRes.IsSuccess)
+            {
+                if (bulkDeletRes.Result == 2)
+                {
+                    Log($"Successfully validated bulk delete of PhoneBookCategory", 4);
+                    rollbackObjects.RemoveAll(u => u.Id == category1.Id);
+                    rollbackObjects.RemoveAll(u => u.Id == category2.Id);
+                }
+                else
+                    Log($"Unable to validate bulk delete of PhoneBookCategory. expected to delete 2, actually deleted: {bulkDeletRes.Result}", 2);
+            }
+            else
+                Log($"Bulk delete of PhoneBookCategory failed: {bulkDeletRes}", 2);
         }
         catch (Exception e)
         {
@@ -595,7 +631,7 @@ internal class MongoDbTester
     {
         PhoneBookCategorySearchParameters searchParameters = new()
         {
-            Query = "category", 
+            Query = "%category", 
             SortAscending = false, 
             SortBy = nameof(PhoneBookCategory.Name)
         };
@@ -637,10 +673,9 @@ internal class MongoDbTester
             {
                 Log($"result does not include {category1.Name}", 2);
             }
-
             if (searchRes.Result.Results.Count != 1)
             {
-                Log($"Not all categories found, expected: 2, received {searchRes.Result.Results.Count}", 2);
+                Log($"Not all categories found, expected: 1, received {searchRes.Result.Results.Count}", 2);
             }
         }
         else

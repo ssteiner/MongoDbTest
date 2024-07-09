@@ -46,7 +46,6 @@ internal static class DatabaseExtensions
             UpdateDefinitionBuilder<T> builder = Builders<T>.Update;
             UpdateDefinition<T> definition = null;
 
-            var updatedObject = oldObject;
             if (update.IncludedPropertiesIncludingPath?.Any(x => x.Contains('.')) == true) // subobject updates
             {
                 var treatedPropertyNames = new List<string>();
@@ -56,7 +55,7 @@ internal static class DatabaseExtensions
                     if (treatedPropertyNames.Contains(propertyName))
                         continue;
                     //var realPropertyName = update.Data.RealPropertyName(propertyName, false);
-                    var type = oldObject.GetPropertyType(propertyName, true);
+                    var type = typeof(T).GetPropertyType(propertyName, true);
                     if (type != null && type.ImplementsIDictionary())
                     { // if it's a dict or list, it'll contain the full value
                         var newValue = update.Data.ObjectValue(propertyName, true);
@@ -80,6 +79,22 @@ internal static class DatabaseExtensions
                     //var realPropertyName = update.Data.RealPropertyName(propertyName, false);
                     definition = SetProperty(builder, definition, propertyName, newValue); // case sensitivity
                 }
+            }
+            return definition;
+        }
+        return null;
+    }
+
+    internal static UpdateDefinition<T> GenerateUpdate<T>(this ExtendedMassUpdateParameters<T> parameters) where T: class
+    {
+        if (parameters.IncludedProperties != null)
+        {
+            UpdateDefinitionBuilder<T> builder = Builders<T>.Update;
+            UpdateDefinition<T> definition = null;
+            foreach (var propertyName in parameters.IncludedProperties)
+            {
+                var newValue = parameters.TemplateObject.ObjectValue(propertyName, true);
+                definition = SetProperty(builder, definition, propertyName, newValue); // case sensitivity
             }
             return definition;
         }

@@ -21,9 +21,9 @@ internal class MongoDatabaseContext(IMongoDatabase database, IUserInformation us
         return database.GetCollection<BsonDocument>(name);
     }
 
-    internal IMongoQueryable<T> AccessibleObjects<T>(bool applyPermissions, string entityName = null) where T: class
+    internal IMongoQueryable<T> AccessibleObjects<T>(bool applyPermissions, string collectionName = null) where T: class
     {
-        IMongoQueryable<T> set = GetCollection<T>(entityName).AsQueryable();
+        IMongoQueryable<T> set = GetCollection<T>(collectionName).AsQueryable();
         return set;
     }
 }

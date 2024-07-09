@@ -11,6 +11,7 @@ using MongoDbTest.Conventions;
 using MongoDbTest.Extensions;
 using NoSqlModels;
 using System.Runtime.CompilerServices;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace MongoDbTest;
 
@@ -351,12 +352,12 @@ internal class MongoDbContext
             var existingItem = context.AccessibleObjects<T>(true).Where(x => x.Id == obj.Id).FirstOrDefault();
             if (existingItem == null)
                 return ObjectNotFoundError<T>(obj.Id);
-            var col = context.GetCollection<T>();
+            //var col = context.GetCollection<T>();
             //var validateRes = ValidateAddOrUpdateInput(obj, col, true);
             //if (!validateRes.IsSuccess)
             //    return validateRes;
             //ProcessUpdatedDbObject(obj, context, false, []);
-            var ignoreList = new List<string> { nameof(IIdItem.Id) };
+            List<string> ignoreList = [nameof(IIdItem.Id)];
             //ignoreList.AddRange(typeof(T).GetIgnorePropertiesForObjectUpdate(ignoreUpdateOfInternalFields, true));
             var differences = ObjectDiffUtils.ObjectDiff.GenerateObjectDiff(existingItem, obj, [.. ignoreList]);
             if (differences.Count <= 0) return GenericOperationResult.Success;
@@ -403,6 +404,26 @@ internal class MongoDbContext
         return result;
     }
 
+    public IOperationResult<int> BulkUpdateObject<T>(ExtendedMassUpdateParameters<T> parameters, IUserInformation userInfo)
+        where T : class, IIdItem
+    {
+        return PerformDatabaseOperation(context =>
+        {
+            //var form = GetGuiFormFromObject<T>();
+            //if (!CheckPermission(context, form, TopLevelPermission.Delete))
+            //    return NoPermissionError<int>(form, TopLevelPermission.Delete);
+            var result = new GenericOperationResult<int>();
+            var col = context.GetCollection<T>(GetCollectionName<T>());
+            var accessibleObjects = context.AccessibleObjects<T>(true).Where(u => parameters.Ids.Contains(u.Id)).Select(x => x.Id).ToList();
+            parameters.Ids.RemoveAll(u => !accessibleObjects.Contains(u)); // ensure that only accessible objects can be updated
+            var updateDefinition = parameters.GenerateUpdate();
+            var res = col.UpdateMany(u => parameters.Ids.Contains(u.Id), updateDefinition);
+            result.Result = (int)res.ModifiedCount;
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
     public IOperationResult DeleteObject<T>(string id, IUserInformation userInfo)
         where T : class, IIdItem
     {
@@ -426,6 +447,38 @@ internal class MongoDbContext
         context.GetCollection<T>().DeleteOne(u => u.Id == id);
         result.IsSuccess = true;
         return result;
+    }
+
+    public IOperationResult<int> BulkDelete<T>(List<string> ids, IUserInformation userInfo)
+        where T : class, IIdItem
+    {
+        return PerformDatabaseOperation(context =>
+        {
+            //var form = GetGuiFormFromObject<T>();
+            //if (!CheckPermission(context, form, TopLevelPermission.MassDelete))
+            //    return NoPermissionError<int>(form, TopLevelPermission.MassDelete);
+            var result = new GenericOperationResult<int>();
+            var accessibleItems = context.AccessibleObjects<T>(true).Select(x => x.Id).ToList();
+            ids.RemoveAll(u => !accessibleItems.Contains(u)); // enforce permissions
+            var deleteRes = context.GetCollection<T>().DeleteMany(u => ids.Contains(u.Id));
+            result.Result = (int)deleteRes.DeletedCount;
+            result.Result = ids.Count;
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    public IOperationResult<int> DeleteObjects<T>(List<string> ids, IUserInformation userInfo) where T: class, IIdItem
+    {
+        return PerformDatabaseOperation(context =>
+        {
+            //var form = GetGuiFormFromObject<T>();
+            //if (!CheckPermission(context, form, TopLevelPermission.Delete))
+            //    return NoPermissionError(form, TopLevelPermission.Delete);
+            var accessibleIds = context.AccessibleObjects<T>(true).Where(u => ids.Contains(u.Id)).Select(x => x.Id).ToList();
+            var deleteRes = context.GetCollection<T>().DeleteMany(u => accessibleIds.Contains(u.Id));
+            return new GenericOperationResult<int> { Result = (int)deleteRes.DeletedCount, IsSuccess = true };
+        }, userInfo);
     }
 
     public IOperationResult<SearchResults<T>> SearchObjects<T>(GenericSearchParameters parameters, IUserInformation userInfo) 
@@ -775,6 +828,8 @@ internal class MongoDbContext
 
     #endregion
 
+    #region helpers
+
     internal static IMongoQueryable<T> IncludeDependencies<T>(IMongoQueryable<T> query)
     {
         var includeList = typeof(T).GetDependencyProperties();
@@ -903,5 +958,5 @@ internal class MongoDbContext
         //    return Localizer.GetString(str, arguments).Value;
         return str;
     }
-
+    #endregion
 }
