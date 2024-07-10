@@ -11,7 +11,6 @@ using MongoDbTest.Conventions;
 using MongoDbTest.Extensions;
 using NoSqlModels;
 using System.Runtime.CompilerServices;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace MongoDbTest;
 
@@ -646,56 +645,17 @@ internal class MongoDbContext
             var existingConfig = await configs.Find(u => u.Id == config.Id).FirstOrDefaultAsync().ConfigureAwait(false);
             if (existingConfig != null)
             {
-                UpdateDefinition<PluginConfiguration> update = null;
-                //bool update = false;
-                if (existingConfig.Name != config.Name)
-                {
-                    if (update == null)
-                        update = Builders<PluginConfiguration>.Update
-                            .Set(p => p.Name, config.Name);
-                    else
-                        update = update.Set(p => p.Name, config.Name);
-                    //existingConfig.Name = config.Name;
-                    //update = true;
-                }
-                if ((existingConfig.SpecialConfig == null && config.SpecialConfig != null) || (existingConfig.SpecialConfig != null && existingConfig.SpecialConfig == null))
-                {
-                    if (update == null)
-                        update = Builders<PluginConfiguration>.Update
-                            .Set(p => p.SpecialConfig, config.SpecialConfig);
-                    else
-                        update = update.Set(p => p.SpecialConfig, config.SpecialConfig);
-                    //existingConfig.SpecialConfig = config.SpecialConfig;
-                    //update = true;
-                }
-                else if (existingConfig.SpecialConfig != null && config.SpecialConfig != null)
-                {
-                    if (existingConfig.SpecialConfig.Value1 != config.SpecialConfig.Value1)
-                    {
-                        if (update == null)
-                            update = Builders<PluginConfiguration>.Update
-                                .Set(p => p.SpecialConfig.Value1, config.SpecialConfig.Value1);
-                        else
-                            update = update.Set(p => p.SpecialConfig.Value1, config.SpecialConfig.Value1);
-                        //existingConfig.SpecialConfig.Value1 = config.SpecialConfig.Value1;
-                        //update = true;
-                    }
-                    if (existingConfig.SpecialConfig.Value2 != config.SpecialConfig.Value2)
-                    {
-                        if (update == null)
-                            update = Builders<PluginConfiguration>.Update
-                                .Set(p => p.SpecialConfig.Value2, config.SpecialConfig.Value2);
-                        else
-                            update = update.Set(p => p.SpecialConfig.Value2, config.SpecialConfig.Value2);
-                        //existingConfig.SpecialConfig.Value2 = config.SpecialConfig.Value2;
-                        //update = true;
-                    }
-                }
+                List<string> ignoreList = [nameof(IIdItem.Id)];
+                //ignoreList.AddRange(typeof(T).GetIgnorePropertiesForObjectUpdate(ignoreUpdateOfInternalFields, true));
+                var differences = ObjectDiffUtils.ObjectDiff.GenerateObjectDiff(existingConfig, config, [.. ignoreList]);
+                if (differences.Count <= 0) return GenericOperationResult.Success;
+                var update = differences.GenerateUpdate(config);
+                //ObjectDiffUtils.ObjectDiff.ApplyDiffData(existingItem, differences);
                 if (update != null)
                 {
                     var filter = Builders<PluginConfiguration>.Filter
                         .Eq(r => r.Id, config.Id);
-                    var updateRes = await configs.UpdateOneAsync(u => u.Id == config.Id, update).ConfigureAwait(false);
+                    var updateRes = await context.GetCollection<PluginConfiguration>().UpdateOneAsync(u => u.Id == config.Id, update).ConfigureAwait(false);
                 }
             }
             result.IsSuccess = true;
