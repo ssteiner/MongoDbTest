@@ -12,10 +12,13 @@ public class PhoneBookContact : IIdItem
 
     public string Location { get; set; }
 
-    [DependencyField]
+    public DateTime? LastUpdate { get; set; }
+
+    public string LastUpdateBy { get; set; }
+
     public List<PhoneBookContactNumber> Numbers { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(SecretaryIds))]
 
     public List<PhoneBookContact> Secretary { get; set; }
 
@@ -23,15 +26,15 @@ public class PhoneBookContact : IIdItem
 
     public string ManagerId { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(ManagerId))]
     public PhoneBookContact Manager { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(CategoryIds))]
     public List<PhoneBookCategory> Categories { get; set; }
 
     public List<string> CategoryIds { get; set; } = [];
 
-    [DependencyField]
+    [DependencyField(nameof(PhoneBookIds))]
     public List<PhoneBook> PhoneBooks { get; set; }
 
     public List<string> PhoneBookIds { get; set; } = [];

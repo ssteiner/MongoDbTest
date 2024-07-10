@@ -10,6 +10,11 @@ public interface INamedItem
     string Name { get; set; }
 }
 
+public interface INamedIdItem: IIdItem, INamedItem
+{
+
+}
+
 public interface IDescriptionItem
 {
     string Description { get; set; }

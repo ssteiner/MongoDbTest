@@ -8,7 +8,7 @@ public class PhoneBookCategory : IIdItem, INamedItem, IDescriptionItem
 
     public string Description { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(PhoneBookIds))]
     public List<PhoneBook> PhoneBooks { get; set; }
 
     public List<string> PhoneBookIds { get; set; }
