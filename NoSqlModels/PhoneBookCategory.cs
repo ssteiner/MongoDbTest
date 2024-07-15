@@ -12,6 +12,8 @@ public class PhoneBookCategory : IIdItem, INamedItem, IDescriptionItem
     public List<PhoneBook> PhoneBooks { get; set; }
 
     public List<string> PhoneBookIds { get; set; }
+
+    public TestObject SubProp { get; set; }
 }
 
 public class PhoneBookCategorySearchParameters : GenericSearchParameters
