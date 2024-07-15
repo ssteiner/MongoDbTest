@@ -113,11 +113,11 @@ internal static class FilterHelpers
             if (useContainsSearch)
                 return items.Where(u => (u.FirstName != null && u.FirstName.ToLower().Contains(firstToken))
                                         || (u.LastName != null && u.LastName.ToLower().Contains(firstToken))
-                                        //|| (includeUserId && u.UserId != null && u.UserId.ToLower().Contains(firstToken))
+                                        || (includeUserId && u.UserId != null && u.UserId.ToLower().Contains(firstToken))
                                         || (includeNumber && u.Numbers.Select(x => x.Number).Any(x => x.Contains(firstToken))));
             return items.Where(u => (u.FirstName != null && u.FirstName.ToLower().StartsWith(firstToken))
                                     || (u.LastName != null && u.LastName.ToLower().StartsWith(firstToken))
-                                    //|| (includeUserId && u.UserId != null && u.UserId.ToLower().StartsWith(firstToken))
+                                    || (includeUserId && u.UserId != null && u.UserId.ToLower().StartsWith(firstToken))
                                     || (includeNumber && u.Numbers.Select(x => x.Number).Any(x => x.StartsWith(firstToken))));
         }
 
@@ -141,20 +141,44 @@ internal static class FilterHelpers
         var builder = Builders<T>.Filter;
         foreach (var prop in stringProperties)
         {
-            if (prop.GetValue(parameters) is string strValue && !string.IsNullOrEmpty(strValue))
+            if (prop.Name == nameof(PhoneBookContactSearchParameters.Number) && parameters is PhoneBookContactSearchParameters contactSearchParameters
+                && items is IMongoQueryable<PhoneBookContact> contacts)
             {
-                if (strValue.StartsWith('%')) // contains
+                if (!string.IsNullOrEmpty(contactSearchParameters.Number))
                 {
-                    var query = strValue.TrimStart('%');//.ToLower();
-                    var filter = builder.Regex(prop.Name, new Regex($"{query}", RegexOptions.IgnoreCase));
-                    items = items.Where(x => filter.Inject());
+                    if (contactSearchParameters.Number.StartsWith('%'))
+                    {
+                        var query = contactSearchParameters.Number.TrimStart('%');
+                        var filter = builder.Regex(prop.Name, new Regex($"{query}", RegexOptions.IgnoreCase));
+                        items = items.Where(x => filter.Inject());
+                        //items = contacts.Where(u => u.Numbers.Select(x => x.Number).Any(x => x.Contains(query))) as IMongoQueryable<T>;
+                    }
+                    else
+                    {
+                        var filter = builder.Regex(prop.Name, new Regex($"^{contactSearchParameters.Number}", RegexOptions.IgnoreCase));
+                        items = items.Where(x => filter.Inject());
+                        //var lowerCaseQuery = contactSearchParameters.Number.ToLower();
+                        //items = contacts.Where(u => u.Numbers.Select(x => x.Number).Any(x => x.Contains(lowerCaseQuery))) as IMongoQueryable<T>;
+                    }
                 }
-                else
+            }
+            else
+            {
+                if (prop.GetValue(parameters) is string strValue && !string.IsNullOrEmpty(strValue))
                 {
-                    var filter = builder.Regex(prop.Name, new Regex($"^{strValue}", RegexOptions.IgnoreCase));
-                    items = items.Where(x => filter.Inject());
+                    if (strValue.StartsWith('%')) // contains
+                    {
+                        var query = strValue.TrimStart('%');//.ToLower();
+                        var filter = builder.Regex(prop.Name, new Regex($"{query}", RegexOptions.IgnoreCase));
+                        items = items.Where(x => filter.Inject());
+                    }
+                    else
+                    {
+                        var filter = builder.Regex(prop.Name, new Regex($"^{strValue}", RegexOptions.IgnoreCase));
+                        items = items.Where(x => filter.Inject());
+                    }
                 }
-            }  
+            }
         }
         return items;
     }

@@ -266,7 +266,16 @@ internal class MongoDbTester
                         else
                             Log($"Delta update of category {category1} didn't take, expected: {deltaUpdate.Data.Name}, received: {catRes.Result.Name}", 2);
                     }
-                }
+                }   
+            }
+
+            addRes = db.AddObject(category2, userInfo);
+            if (addRes.IsSuccess)
+                rollbackObjects.Add(category2);
+            var categoryRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
+
+            if (addRes.IsSuccess)
+            {
                 var newDescription = "hello world";
                 ExtendedMassUpdateParameters<PhoneBookCategory> massUpdates = new()
                 {
@@ -289,11 +298,6 @@ internal class MongoDbTester
                     }
                 }
             }
-
-            addRes = db.AddObject(category2, userInfo);
-            if (addRes.IsSuccess)
-                rollbackObjects.Add(category2);
-            var categoryRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
 
             addRes = db.AddObject(manager, userInfo);
             if (addRes.IsSuccess)
@@ -329,24 +333,48 @@ internal class MongoDbTester
             contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true);
             contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
 
-            await SearchTest(category1, category2, pb1, pb2).ConfigureAwait(false);
+            await CategorySearchTest(category1, category2, pb1, pb2).ConfigureAwait(false);
 
             await ContactSearchTest(category1, category2, contact1, contact2, manager, secretary).ConfigureAwait(false);
 
             // try to add with just an Id
             {
                 var tempContact2 = contactRes.Result;
-                //tempContact2.Categories.Add(category1);
+                tempContact2.CategoryIds ??= [];
                 tempContact2.CategoryIds.Add(category1.Id);
                 var updateRes = db.UpdateObject(tempContact2, userInfo);
-
-                contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+                if (updateRes.IsSuccess)
+                {
+                    contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+                    if (contactRes.IsSuccess)
+                    {
+                        if (contactRes.Result.CategoryIds?.Contains(category1.Id) == true)
+                            Log($"Successfully validated adding category {category1.Name} to contact {tempContact2.Id}", 4);
+                        else
+                            Log($"Category {category1.Name} was not added to contact {tempContact2.Id}", 2);
+                    }
+                    else
+                        Log($"Unable to extract contact {contact2.Id}: {contactRes}", 2);
+                }
 
                 tempContact2 = contactRes.Result;
                 //tempContact2.Categories.RemoveAll(u => u.Id == category1.Id);
-                tempContact2.CategoryIds.Remove(category1.Id);
+                tempContact2.CategoryIds?.Remove(category1.Id);
 
                 updateRes = db.UpdateObject(tempContact2, userInfo);
+                if (updateRes.IsSuccess)
+                {
+                    contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+                    if (contactRes.IsSuccess)
+                    {
+                        if (contactRes.Result.CategoryIds?.Contains(category1.Id) == true)
+                            Log($"Category {category1.Name} was not removed from contact {tempContact2.Id}", 2);
+                        else
+                            Log($"Category {category1.Name} was successfully removed from contact {tempContact2.Id}", 4);
+                    }
+                    else
+                        Log($"Unable to extract contact {contact2.Id}: {contactRes}", 2);
+                }
                 contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
             }
 
@@ -414,7 +442,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact2.Id)
-                    Log($"Sort didn't work, first item in't {contact2.FirstName}", 2);
+                    Log($"Sort didn't work, first item isn't {contact2.FirstName}", 2);
             }
         }
 
@@ -434,7 +462,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {secretary.FirstName}", 2);
+                    Log($"Sort didn't work, first item isn't {secretary.FirstName}", 2);
             }
         }
 
@@ -536,7 +564,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
+                    Log($"Sort didn't work, first item isn't {contact1.FirstName}", 2);
             }
         }
 
@@ -555,7 +583,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
+                    Log($"Sort didn't work, first item isn't {contact1.FirstName}", 2);
             }
         }
 
@@ -576,7 +604,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
+                    Log($"Sort didn't work, first item isn't {contact1.FirstName}", 2);
             }
         }
 
@@ -584,7 +612,7 @@ internal class MongoDbTester
         {
             SearchParameters =
             [ // gets us contact 1
-                new() { FieldName = nameof(PhoneBookContact.ManagerId), FieldOperator = ComparisonOperator.IsNotEmpty}
+                new() { FieldName = nameof(PhoneBookContact.ManagerId), FieldOperator = ComparisonOperator.IsEmpty}
             ]
         };
         searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
@@ -627,7 +655,7 @@ internal class MongoDbTester
         }
     }
 
-    private async Task SearchTest(PhoneBookCategory category1, PhoneBookCategory category2, PhoneBook pb1, PhoneBook pb2)
+    private async Task CategorySearchTest(PhoneBookCategory category1, PhoneBookCategory category2, PhoneBook pb1, PhoneBook pb2)
     {
         PhoneBookCategorySearchParameters searchParameters = new()
         {
@@ -646,7 +674,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != category1.Id)
-                    Log($"Sort didn't work, first item in't {category2.Name}", 2);
+                    Log($"Sort didn't work, first item isn't {category2.Name}", 2);
             }
         }
         else
