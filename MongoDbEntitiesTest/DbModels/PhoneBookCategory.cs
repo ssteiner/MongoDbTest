@@ -6,7 +6,7 @@ namespace MongoDbEntitiesTest.DbModels;
 [Collection("phoneBookCategorys")]
 public class PhoneBookCategory : BaseNamedEntity
 {
-    [DependencyField]
+    [DependencyField(nameof(PhoneBookIds))]
     public Many<PhoneBook, PhoneBookCategory> PhoneBooks { get; set; }
     //public List<PhoneBook> PhoneBooks { get; set; }
 

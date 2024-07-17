@@ -699,7 +699,7 @@ internal partial class MongoDbContext
     {
         return new GenericOperationResult<T>
         {
-            ErrorMessage = GetTranslatedString(DatabaseErrors.ObjectNotFound, typeof(T).Name, id),
+            ErrorMessage = GetTranslatedString(NoSqlModels.DatabaseErrors.ObjectNotFound, typeof(T).Name, id),
             //ErrorType = ErrorType.ObjectNotFound
         };
     }
@@ -708,7 +708,7 @@ internal partial class MongoDbContext
     {
         return new GenericOperationResult<T>
         {
-            ErrorMessage = GetTranslatedString(DatabaseErrors.ObjectNotFound, typeof(T).Name, id),
+            ErrorMessage = GetTranslatedString(NoSqlModels.DatabaseErrors.ObjectNotFound, typeof(T).Name, id),
             //ErrorType = ErrorType.ObjectNotFound
         };
     }

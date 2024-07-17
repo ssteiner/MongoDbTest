@@ -12,10 +12,10 @@ public class PhoneBookContact : BaseEntity
 
     public string Location { get; set; }
 
-    [DependencyField]
+    [DependencyField(null)]
     public List<PhoneBookContactNumber> Numbers { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(SecretaryIds))]
 
     public Many<PhoneBookContact, PhoneBookContact> Secretary { get; set; }
 
@@ -23,15 +23,15 @@ public class PhoneBookContact : BaseEntity
 
     public string ManagerId { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(ManagerId))]
     public One<PhoneBookContact> Manager { get; set; }
 
-    [DependencyField]
+    [DependencyField(nameof(CategoryIds))]
     public Many<PhoneBookCategory, PhoneBookContact> Categories { get; set; }
 
     public List<string> CategoryIds { get; set; } = [];
 
-    [DependencyField]
+    [DependencyField(nameof(PhoneBookIds))]
     public List<PhoneBook> PhoneBooks { get; set; }
 
     public List<string> PhoneBookIds { get; set; } = [];
