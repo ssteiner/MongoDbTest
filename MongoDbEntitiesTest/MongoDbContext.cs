@@ -198,9 +198,23 @@ internal partial class MongoDbContext
             var result = new GenericOperationResult<PhoneBookContact>();
             var col = context.AccessibleObjects<PhoneBookContact>(false);
             col = col.Join(col, contact => contact.ManagerId, manager => manager.Id, (contact, manager) => new PhoneBookContact
-            { Id = contact.Id, FirstName = contact.FirstName, ManagerId = contact.ManagerId, Manager = manager.Manager });
+            { 
+                Id = contact.Id, 
+                FirstName = contact.FirstName, 
+                ManagerId = contact.ManagerId, 
+                Manager = manager.Manager 
+            });
 
             //col = col.Join(col, contact => contact.SecretaryIds, secretary => secretary.Id, (contact, secretary) => contact);
+
+            var hydratedContact = context.GetCollection<PhoneBookContact>()
+                .Aggregate()
+                .Match(u => u.Id == id)
+                .Lookup(GetCollectionName<PhoneBookContact>(), nameof(PhoneBookContact.ManagerId), "_id", nameof(PhoneBookContact.Manager))
+                .Unwind(nameof(PhoneBookContact.Manager))
+                .Lookup(GetCollectionName<PhoneBookContact>(), nameof(PhoneBookContact.SecretaryIds), "_id", nameof(PhoneBookContact.Secretary))
+                .As<PhoneBookContact>()
+                .FirstOrDefault();
 
             var item = col.Where(u => u.Id == id).FirstOrDefault();
             if (item != null)
