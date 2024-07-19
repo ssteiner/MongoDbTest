@@ -3,6 +3,7 @@ using GenericProvisioningLib;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
+using MongoDB.Bson.Serialization.IdGenerators;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
@@ -59,44 +60,84 @@ internal class MongoDbContext
         BsonClassMap.RegisterClassMap<PhoneBookCategory>(classMap =>
         {
             classMap.AutoMap();
-            //classMap.UnmapMember(m => m.PhoneBooks);
-            classMap.MapProperty(x => x.PhoneBookIds)
-                .SetSerializer(
-                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
-                    new StringSerializer(BsonType.ObjectId)));
-            //classMap.MapMember(h => h.Id).ShouldSerialize(null, null);
-            //classMap.MapMember(h => h.YearBuilt).SetDefaultValue(1900);
-        });
-        BsonClassMap.RegisterClassMap<PhoneBookContact>(classMap =>
-        {
-            classMap.AutoMap();
-            //classMap.UnmapMember(m => m.Secretary);
-            classMap.UnmapMember(m => m.Categories);
             classMap.UnmapMember(m => m.PhoneBooks);
-            classMap.MapProperty(m => m.NumberOfTelephoneNumbers);
-            classMap.MapProperty(x => x.ManagerId).SetSerializer(new StringSerializer(BsonType.ObjectId));
-            //classMap.MapProperty(x => x.Numbers[0].Number).SetSerializer(new StringSerializer(BsonType.ObjectId));
-
-            classMap.MapProperty(x => x.SecretaryIds)
-                .SetSerializer(
-                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
-                    new StringSerializer(BsonType.ObjectId)));
             classMap.MapProperty(x => x.PhoneBookIds)
                 .SetSerializer(
                     new EnumerableInterfaceImplementerSerializer<List<string>, string>(
                     new StringSerializer(BsonType.ObjectId)));
-            classMap.MapProperty(x => x.CategoryIds)
-                .SetSerializer(
-                    new EnumerableInterfaceImplementerSerializer<List<string>, string>(
-                    new StringSerializer(BsonType.ObjectId)));
-            //classMap.MapMember(h => h.Id).ShouldSerialize(null, null);
-            //classMap.MapMember(h => h.YearBuilt).SetDefaultValue(1900);
         });
-        BsonClassMap.RegisterClassMap<PhoneBookContactNumber>(classMap =>
+
+        BsonClassMap.RegisterClassMap<PhoneBookContactNumber>(cm =>
         {
-            classMap.AutoMap();
-            classMap.MapProperty(x => x.Id).SetSerializer(new StringSerializer(BsonType.ObjectId));
+            cm.AutoMap();
+            cm.MapIdMember(c => c.Id)
+              .SetIdGenerator(StringObjectIdGenerator.Instance)
+              .SetSerializer(new StringSerializer(BsonType.ObjectId));
+            cm.MapMember(c => c.Number).SetSerializer(new StringSerializer(BsonType.String));
         });
+
+        BsonClassMap.RegisterClassMap<PhoneBookContact>(cm =>
+        {
+            cm.AutoMap();
+            cm.UnmapMember(m => m.Categories);
+            cm.UnmapMember(m => m.PhoneBooks);
+            cm.MapProperty(m => m.NumberOfTelephoneNumbers);
+            cm.MapProperty(x => x.ManagerId).SetSerializer(new StringSerializer(BsonType.ObjectId));
+
+            cm.MapProperty(x => x.PhoneBookIds)
+                .SetSerializer(new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
+            cm.MapProperty(x => x.CategoryIds)
+                .SetSerializer(new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
+
+            cm.MapMember(x => x.Numbers).SetSerializer(
+                new EnumerableInterfaceImplementerSerializer<List<PhoneBookContactNumber>, PhoneBookContactNumber>(
+                    BsonSerializer.LookupSerializer<PhoneBookContactNumber>()));
+        });
+
+        //BsonClassMap.RegisterClassMap<PhoneBookContactNumber>(classMap =>
+        //{
+        //    classMap.AutoMap();
+        //    classMap.MapIdMember(c => c.Id)
+        //      .SetIdGenerator(StringObjectIdGenerator.Instance)
+        //      .SetSerializer(new StringSerializer(BsonType.ObjectId));
+        //    classMap.MapMember(c => c.Number).SetSerializer(new StringSerializer(BsonType.String));
+        //});
+
+        //BsonClassMap.RegisterClassMap<PhoneBookContact>(classMap =>
+        //{
+        //    classMap.AutoMap();
+        //    classMap.UnmapMember(m => m.Secretary);
+        //    classMap.UnmapMember(m => m.Categories);
+        //    classMap.UnmapMember(m => m.PhoneBooks);
+        //    classMap.MapProperty(m => m.NumberOfTelephoneNumbers);
+        //    classMap.MapProperty(x => x.ManagerId).SetSerializer(new StringSerializer(BsonType.ObjectId));
+        //    classMap.MapMember(x => x.Numbers)
+        //        .SetSerializer(
+        //            new EnumerableInterfaceImplementerSerializer<List<PhoneBookContactNumber>, PhoneBookContactNumber>(
+        //            BsonSerializer.LookupSerializer<PhoneBookContactNumber>()));
+
+        //    //classMap.MapProperty(x => x.Numbers[0].Id).SetSerializer(new StringSerializer(BsonType.ObjectId));
+        //    //classMap.MapProperty(x => x.Numbers)
+        //    //    .SetSerializer(
+        //    //        new EnumerableInterfaceImplementerSerializer<List<PhoneBookContactNumber>, PhoneBookContactNumber>(
+        //    //        new PhoneBookContactNumberSerializer()));
+
+        //    classMap.MapProperty(x => x.SecretaryIds)
+        //        .SetSerializer(
+        //            new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+        //            new StringSerializer(BsonType.ObjectId)));
+        //    classMap.MapProperty(x => x.PhoneBookIds)
+        //        .SetSerializer(
+        //            new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+        //            new StringSerializer(BsonType.ObjectId)));
+        //    classMap.MapProperty(x => x.CategoryIds)
+        //        .SetSerializer(
+        //            new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+        //            new StringSerializer(BsonType.ObjectId)));
+        //});
+
 
         return await PerformDatabaseOperationAsync(async context =>
         {

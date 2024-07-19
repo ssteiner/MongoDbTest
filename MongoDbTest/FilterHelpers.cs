@@ -242,7 +242,7 @@ internal static class FilterHelpers
         return items;
     }
 
-    internal static IQueryable<T> AppendGenericFilter<T>(IQueryable<T> items, GenericSearchParameters parameters,
+    internal static IQueryable<T> AppendGenericFilter<T>(this IQueryable<T> items, GenericSearchParameters parameters,
         ref bool isSorted) where T : class
     {
         if ((parameters.SearchParameters == null || parameters.SearchParameters.Count <= 0) &&

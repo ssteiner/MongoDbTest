@@ -1,7 +1,6 @@
 ﻿using GeneralTools.Extensions;
 using GenericProvisioningLib;
 using Microsoft.Extensions.Configuration;
-using MongoDB.Bson;
 using NoSqlModels;
 
 namespace MongoDbTest;
@@ -174,8 +173,8 @@ internal class MongoDbTester
             LastName = "Grossmeister",
             Location = "Bern",
             Numbers = [
-                    new PhoneBookContactNumber { /*Id = Guid.NewGuid(), */ Id = ObjectId.GenerateNewId().ToString(), Number = "+41587770001", Type = NumberType.Office },
-                    new PhoneBookContactNumber { /*Id = Guid.NewGuid(), */ Id = ObjectId.GenerateNewId().ToString(), Number = "+41767770002", Type = NumberType.Mobile }
+                    new PhoneBookContactNumber { /*Id = ObjectId.GenerateNewId().ToString(),*/ Number = "+41587770001", Type = NumberType.Office },
+                    new PhoneBookContactNumber { /*Id = ObjectId.GenerateNewId().ToString(),*/ Number = "+41767770002", Type = NumberType.Mobile }
                     ]
         };
         PhoneBookContact contact2 = new()
@@ -185,8 +184,8 @@ internal class MongoDbTester
             LastName = "Meister",
             Location = "Bern",
             Numbers = [
-                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(),  Number = "+41587770003", Type = NumberType.Office },
-                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(), Number = "+41767770004", Type = NumberType.Mobile }
+                new PhoneBookContactNumber { /*Id = ObjectId.GenerateNewId().ToString(),*/  Number = "+41587770003", Type = NumberType.Office },
+                new PhoneBookContactNumber { /*Id = ObjectId.GenerateNewId().ToString(),*/ Number = "+41767770004", Type = NumberType.Mobile }
                 ]
         };
         PhoneBookContact manager = new()
@@ -196,7 +195,7 @@ internal class MongoDbTester
             LastName = "Meier",
             Location = "Züri",
             Numbers = [
-                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(), Number = "+41587770005", Type = NumberType.Office },
+                new PhoneBookContactNumber { /*Id = ObjectId.GenerateNewId().ToString(),*/ Number = "+41587770005", Type = NumberType.Office },
             ]
         };
 
@@ -207,7 +206,7 @@ internal class MongoDbTester
             LastName = "Müller",
             Location = "Züri",
             Numbers = [
-                new PhoneBookContactNumber { /*Id = Guid.NewGuid(),*/ Id = ObjectId.GenerateNewId().ToString(),  Number = "+41587770006", Type = NumberType.Office },
+                new PhoneBookContactNumber { /*Id = ObjectId.GenerateNewId().ToString(),*/  Number = "+41587770006", Type = NumberType.Office },
             ]
         };
 
