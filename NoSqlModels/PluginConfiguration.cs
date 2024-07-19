@@ -1,7 +1,10 @@
-﻿namespace NoSqlModels;
+﻿using Newtonsoft.Json;
+
+namespace NoSqlModels;
 
 public class PluginConfiguration
 {
+    [JsonProperty("id")]
     public Guid Id { get; set; }
 
     public string Name { get; set; }
