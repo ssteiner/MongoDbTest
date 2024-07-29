@@ -1,6 +1,7 @@
 ﻿using GeneralTools.Extensions;
 using MongoDB.Driver;
 using NoSqlModels;
+using System.Reflection;
 
 namespace MongoDbTest.Extensions;
 
@@ -49,24 +50,33 @@ internal static class DatabaseExtensions
             if (update.IncludedPropertiesIncludingPath?.Any(x => x.Contains('.')) == true) // subobject updates
             {
                 var treatedPropertyNames = new List<string>();
+                bool isSubProp = false;
                 foreach (var pathName in update.IncludedPropertiesIncludingPath)
                 {
-                    var propertyName = pathName.ValueBefore(".");
+                    isSubProp = pathName.Contains('.');
+                    var propertyName = isSubProp ? pathName.ValueBefore(".") : pathName;
                     if (treatedPropertyNames.Contains(propertyName))
                         continue;
-                    //var realPropertyName = update.Data.RealPropertyName(propertyName, false);
+                    var realPropertyName = update.Data.RealPropertyName(propertyName, false);
                     var type = typeof(T).GetPropertyType(propertyName, true);
                     if (type != null && type.ImplementsIDictionary())
                     { // if it's a dict or list, it'll contain the full value
                         var newValue = update.Data.ObjectValue(propertyName, true);
-                        definition = SetProperty(builder, definition, propertyName, newValue);
-                        //updatedObject.SetObjectValue(propertyName, newValue, true);
+                        definition = SetProperty(builder, definition, realPropertyName, newValue);
                         treatedPropertyNames.Add(propertyName);
                     }
                     else
                     {
                         var newValue = update.Data.ObjectValue(pathName, true);
-                        definition = SetProperty(builder, definition, propertyName, newValue);
+                        if (isSubProp)
+                        {
+                            var subPropertyName = pathName.ValueAfter(".");
+                            var realSubPropertyName = update.Data.RealPropertyName(pathName);
+                            var fullPath = $"{realPropertyName}.{realSubPropertyName}";
+                            definition = SetProperty(builder, definition, fullPath, newValue);
+                        }
+                        else
+                            definition = SetProperty(builder, definition, realPropertyName, newValue);
                         //updatedObject.SetObjectValue(pathName, newValue, true);
                     }
                 }
@@ -106,13 +116,5 @@ internal static class DatabaseExtensions
         if (definition == null)
             return builder.Set(propertyName, newValue);
         return definition.Set(propertyName, newValue);
-    }
-
-    public static List<string> GetDependencyProperties(this Type t)
-    {
-        return t.GetProperties().Where(prop => prop.IsDefined(typeof(DependencyFieldAttribute), true))
-            .OrderBy(n => n.Name)
-            .Select(x => x.Name)
-            .ToList();
     }
 }

@@ -10,7 +10,9 @@ using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Linq;
 using MongoDbTest.Conventions;
 using MongoDbTest.Extensions;
+using MongoDbTest.Helpers;
 using NoSqlModels;
+using NoSqlModels.Extensions;
 using System.Runtime.CompilerServices;
 
 namespace MongoDbTest;
@@ -214,33 +216,33 @@ internal class MongoDbContext
 
     #region generic operations
 
-    public IOperationResult AddObject<T>(T obj, IUserInformation userInfo) where T : class, IIdItem
+    public async Task<IOperationResult> AddObject<T>(T obj, IUserInformation userInfo) where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //var form = GetGuiFormFromObject<T>();
             //if (!CheckPermission(context, form, TopLevelPermission.Add))
             //    return NoPermissionError<T>(form, TopLevelPermission.Add);
             var result = new GenericOperationResult<T>();
             var col = context.GetCollection<T>();
-            //var validateRes = ValidateAddOrUpdateInput(obj, col, false);
-            //if (!validateRes.IsSuccess)
-            //    return validateRes;
-            //ProcessNewDbObject(obj, context, true);
-            col.InsertOne(obj);
+            var validateRes = await ValidateAddOrUpdateInput(obj, context.AccessibleObjects<T>(false), false).ConfigureAwait(false);
+            if (!validateRes.IsSuccess)
+                return validateRes;
+            DataPreProcessor.ProcessNewDbObject(obj, context, true);
+            await col.InsertOneAsync(obj).ConfigureAwait(false);
             //MakeObjectAccessible(obj, context);
             //result.Result = obj.FromDbObject(true, false);
             result.Result = obj;
             result.IsSuccess = true;
             return result;
-        }, userInfo);
+        }, userInfo).ConfigureAwait(false);
     }
 
-    public IOperationResult<T> GetObject<T>(string id, IUserInformation userInfo, bool includeDependencies = false,
+    public async Task<IOperationResult<T>> GetObject<T>(string id, IUserInformation userInfo, bool includeDependencies = false,
         bool ignoreObjectAccessibility = false, bool ignorePermissions = false, bool includeCredentials = true)
         where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //if (perm != null && !CheckPermission(context, perm.Form, perm.Permission))
             //    return NoPermissionError<T>(perm.Form, perm.Permission);
@@ -255,7 +257,7 @@ internal class MongoDbContext
             //if (includeDependencies)
             //    col = IncludeDependencies(col);
 
-            var item = col.Where(u => u.Id == id).FirstOrDefault();
+            var item = await col.Where(u => u.Id == id).FirstOrDefaultAsync().ConfigureAwait(false);
             if (item != null)
             {
                 //result.Result = item.FromDbObject(includeDependencies, includeCredentials);
@@ -265,7 +267,7 @@ internal class MongoDbContext
             else
                 return ObjectNotFoundError<T>(id);
             return result;
-        }, userInfo);
+        }, userInfo).ConfigureAwait(false);
     }
 
     public IOperationResult<PhoneBookContact> GetContactWithManager(string id, IUserInformation userInfo)
@@ -379,57 +381,61 @@ internal class MongoDbContext
         }, userInfo);
     }
 
-    public IOperationResult UpdateObject<T>(T obj, IUserInformation userInfo, bool ignoreUpdateOfInternalFields = true)
+    public async Task<IOperationResult> UpdateObject<T>(T obj, IUserInformation userInfo, bool ignoreUpdateOfInternalFields = true)
         where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //var form = GetGuiFormFromObject<T>();
             //if (!CheckPermission(context, form, TopLevelPermission.Update))
             //    return NoPermissionError(form, TopLevelPermission.Update);
             var result = new GenericOperationResult();
 
-            var existingItem = context.AccessibleObjects<T>(true).Where(x => x.Id == obj.Id).FirstOrDefault();
+            var existingItem = await context.AccessibleObjects<T>(true).Where(x => x.Id == obj.Id).FirstOrDefaultAsync().ConfigureAwait(false);
             if (existingItem == null)
                 return ObjectNotFoundError<T>(obj.Id);
-            //var col = context.GetCollection<T>();
-            //var validateRes = ValidateAddOrUpdateInput(obj, col, true);
-            //if (!validateRes.IsSuccess)
-            //    return validateRes;
-            //ProcessUpdatedDbObject(obj, context, false, []);
+            var col = context.GetCollection<T>();
+            var validateRes = await ValidateAddOrUpdateInput(obj, context.AccessibleObjects<T>(false), true).ConfigureAwait(false);
+            if (!validateRes.IsSuccess)
+                return validateRes;
+            await DataPreProcessor.ProcessUpdatedDbObject(obj, context, false, []).ConfigureAwait(false);
             List<string> ignoreList = [nameof(IIdItem.Id)];
-            //ignoreList.AddRange(typeof(T).GetIgnorePropertiesForObjectUpdate(ignoreUpdateOfInternalFields, true));
+            ignoreList.AddRange(typeof(T).GetIgnorePropertiesForObjectUpdate(ignoreUpdateOfInternalFields, false));
             var differences = ObjectDiffUtils.ObjectDiff.GenerateObjectDiff(existingItem, obj, [.. ignoreList]);
             if (differences.Count <= 0) return GenericOperationResult.Success;
             var update = differences.GenerateUpdate(obj);
-            //ObjectDiffUtils.ObjectDiff.ApplyDiffData(existingItem, differences);
-            var updateRes = context.GetCollection<T>().UpdateOne(u => u.Id == obj.Id, update);
+            if (update != null)
+            {
+                //ObjectDiffUtils.ObjectDiff.ApplyDiffData(existingItem, differences);
+                var updateRes = await context.GetCollection<T>().UpdateOneAsync(u => u.Id == obj.Id, update).ConfigureAwait(false);
+            }
             result.IsSuccess = true;
             return result;
-        }, userInfo);
+        }, userInfo).ConfigureAwait(false);
     }
 
-    public IOperationResult UpdateObject<T>(string id, DeltaBaseObject<T> update, IUserInformation userInfo, bool ignoreUpdateOfInternalFields = true)
+    public async Task<IOperationResult> UpdateObject<T>(string id, DeltaBaseObject<T> update, IUserInformation userInfo, bool ignoreUpdateOfInternalFields = true)
         where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //var form = GetGuiFormFromObject<T>();
             //if (!CheckPermission(context, form, TopLevelPermission.Update))
             //    return NoPermissionError<T>(form, TopLevelPermission.Update);
-            var existingItem = context.AccessibleObjects<T>(true).Where(x => x.Id == id).FirstOrDefault();
+
+            var existingItem = await context.AccessibleObjects<T>(true).Where(x => x.Id == id).FirstOrDefaultAsync().ConfigureAwait(false);
             if (existingItem == null)
                 return ObjectNotFoundError<T>(id);
             var col = context.GetCollection<T>();
-            //var validateRes = ValidateAddOrUpdateInput(update.Data, col, true);
-            //if (!validateRes.IsSuccess)
-            //    return validateRes;
-            //ProcessUpdatedDbObject(update.Data, context, true, update.IncludedProperties);
-            return UpdateObject(existingItem, update, col);
-        }, userInfo);
+            var validateRes = await ValidateAddOrUpdateInput(update.Data, context.AccessibleObjects<T>(false), true).ConfigureAwait(false);
+            if (!validateRes.IsSuccess)
+                return validateRes;
+            await DataPreProcessor.ProcessUpdatedDbObject(update.Data, context, true, update.IncludedProperties).ConfigureAwait(false);
+            return await UpdateObject(existingItem, update, col).ConfigureAwait(false);
+        }, userInfo).ConfigureAwait(false);
     }
 
-    private IOperationResult<T> UpdateObject<T>(T existingItem, DeltaBaseObject<T> update, IMongoCollection<T> col)
+    private async Task<IOperationResult<T>> UpdateObject<T>(T existingItem, DeltaBaseObject<T> update, IMongoCollection<T> col)
         where T : class, IIdItem
     {
         GenericOperationResult<T> result = new()
@@ -438,87 +444,80 @@ internal class MongoDbContext
             Result = existingItem
         };
         var updateDefinition = existingItem.GenerateUpdate(update);
-        //DeltaExtensions.ApplyDelta(existingItem, update);
-        var updateRes = col.UpdateOne(u => u.Id == existingItem.Id, updateDefinition);
+        if (updateDefinition != null)
+        {
+            //DeltaExtensions.ApplyDelta(existingItem, update);
+            var updateRes = await col.UpdateOneAsync(u => u.Id == existingItem.Id, updateDefinition).ConfigureAwait(false);
+        }
         result.IsSuccess = true;
         return result;
     }
 
-    public IOperationResult<int> BulkUpdateObject<T>(ExtendedMassUpdateParameters<T> parameters, IUserInformation userInfo)
+    public async Task<IOperationResult<int>> BulkUpdateObject<T>(ExtendedMassUpdateParameters<T> parameters, IUserInformation userInfo)
         where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //var form = GetGuiFormFromObject<T>();
             //if (!CheckPermission(context, form, TopLevelPermission.Delete))
             //    return NoPermissionError<int>(form, TopLevelPermission.Delete);
-            var result = new GenericOperationResult<int>();
+            IOperationResult<int> result = new GenericOperationResult<int>();
             var col = context.GetCollection<T>(GetCollectionName<T>());
-            var accessibleObjects = context.AccessibleObjects<T>(true).Where(u => parameters.Ids.Contains(u.Id)).Select(x => x.Id).ToList();
+            var accessibleObjects = await context.AccessibleObjects<T>(true).Where(u => parameters.Ids.Contains(u.Id)).Select(x => x.Id).ToListAsync().ConfigureAwait(false);
             parameters.Ids.RemoveAll(u => !accessibleObjects.Contains(u)); // ensure that only accessible objects can be updated
             var updateDefinition = parameters.GenerateUpdate();
-            var res = col.UpdateMany(u => parameters.Ids.Contains(u.Id), updateDefinition);
-            result.Result = (int)res.ModifiedCount;
+            if (updateDefinition != null)
+            {
+                var res = await col.UpdateManyAsync(u => parameters.Ids.Contains(u.Id), updateDefinition).ConfigureAwait(false);
+                result.Result = (int)res.ModifiedCount;
+            }
             result.IsSuccess = true;
             return result;
-        }, userInfo);
+        }, userInfo).ConfigureAwait(false);
     }
 
-    public IOperationResult DeleteObject<T>(string id, IUserInformation userInfo)
+    public async Task<IOperationResult> DeleteObject<T>(string id, IUserInformation userInfo)
         where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //var form = GetGuiFormFromObject<T>();
             //if (!CheckPermission(context, form, TopLevelPermission.Delete))
             //    return NoPermissionError(form, TopLevelPermission.Delete);
-            return DeleteObject<T>(id, context);
-        }, userInfo);
+            return await DeleteObject<T>(id, context).ConfigureAwait(false);
+        }, userInfo).ConfigureAwait(false);
     }
 
-    private IOperationResult DeleteObject<T>(string id, MongoDatabaseContext context)
+    private async Task<IOperationResult> DeleteObject<T>(string id, MongoDatabaseContext context)
         where T : class, IIdItem
     {
         var result = new GenericOperationResult();
         var col = context.AccessibleObjects<T>(true);
-        var existingItem = col.Where(x => x.Id == id).FirstOrDefault();
+        var existingItem = await col.Where(x => x.Id == id).FirstOrDefaultAsync().ConfigureAwait(false);
         if (existingItem == null)
             return ObjectNotFoundError<T>(id);
-        context.GetCollection<T>().DeleteOne(u => u.Id == id);
+        await context.GetCollection<T>().DeleteOneAsync(u => u.Id == id).ConfigureAwait(false);
         result.IsSuccess = true;
         return result;
     }
 
-    public IOperationResult<int> BulkDelete<T>(List<string> ids, IUserInformation userInfo)
+    public async Task<IOperationResult<int>> BulkDelete<T>(List<string> ids, IUserInformation userInfo)
         where T : class, IIdItem
     {
-        return PerformDatabaseOperation(context =>
+        return await PerformDatabaseOperationAsync(async context =>
         {
             //var form = GetGuiFormFromObject<T>();
             //if (!CheckPermission(context, form, TopLevelPermission.MassDelete))
             //    return NoPermissionError<int>(form, TopLevelPermission.MassDelete);
-            var result = new GenericOperationResult<int>();
-            var accessibleItems = context.AccessibleObjects<T>(true).Select(x => x.Id).ToList();
+            IOperationResult<int> result = new GenericOperationResult<int>();
+            var accessibleItems = await context.AccessibleObjects<T>(true).Select(x => x.Id).ToListAsync().ConfigureAwait(false);
             ids.RemoveAll(u => !accessibleItems.Contains(u)); // enforce permissions
-            var deleteRes = context.GetCollection<T>().DeleteMany(u => ids.Contains(u.Id));
+            var deleteRes = await context.GetCollection<T>().DeleteManyAsync(u => ids.Contains(u.Id)).ConfigureAwait(false);
             result.Result = (int)deleteRes.DeletedCount;
             result.Result = ids.Count;
             result.IsSuccess = true;
             return result;
-        }, userInfo);
-    }
-
-    public IOperationResult<int> DeleteObjects<T>(List<string> ids, IUserInformation userInfo) where T: class, IIdItem
-    {
-        return PerformDatabaseOperation(context =>
-        {
-            //var form = GetGuiFormFromObject<T>();
-            //if (!CheckPermission(context, form, TopLevelPermission.Delete))
-            //    return NoPermissionError(form, TopLevelPermission.Delete);
-            var accessibleIds = context.AccessibleObjects<T>(true).Where(u => ids.Contains(u.Id)).Select(x => x.Id).ToList();
-            var deleteRes = context.GetCollection<T>().DeleteMany(u => accessibleIds.Contains(u.Id));
-            return new GenericOperationResult<int> { Result = (int)deleteRes.DeletedCount, IsSuccess = true };
-        }, userInfo);
+        }, userInfo).ConfigureAwait(false);
     }
 
     public IOperationResult<SearchResults<T>> SearchObjects<T>(GenericSearchParameters parameters, IUserInformation userInfo) 
@@ -829,6 +828,33 @@ internal class MongoDbContext
 
     #endregion
 
+    #region validation
+
+    private async Task<IOperationResult<T>> ValidateAddOrUpdateInput<T>(T apiObj, IMongoQueryable<T> set, bool isUpdate)
+        where T : class, IIdItem
+    {
+        if (!isUpdate)
+        {
+            if (await set.Where(u => u.Id == apiObj.Id).FirstOrDefaultAsync() != null)
+                return DuplicateObjectError<T>(apiObj.Id);
+        }
+        if (typeof(INamedIdItem).IsAssignableFrom(apiObj.GetType()))
+        {
+            if (set is IMongoQueryable<INamedIdItem> myItems && apiObj is INamedIdItem namedObject and not PhoneBookContact and not PhoneBookContactNumber)
+            {
+                if (!string.IsNullOrEmpty(namedObject.Name))
+                {
+                    var lowerCaseName = namedObject.Name.ToLower();
+                    if (await myItems.AnyAsync(x => x.Name.ToLower() == lowerCaseName && x.Id != apiObj.Id))
+                        return DuplicateNameError<T>(namedObject.Name);
+                }
+            }
+        }
+        return GenericOperationResult<T>.Success;
+    }
+
+    #endregion
+
     #region helpers
 
     internal static IMongoQueryable<T> IncludeDependencies<T>(IMongoQueryable<T> query)
@@ -950,6 +976,24 @@ internal class MongoDbContext
         {
             ErrorMessage = GetTranslatedString(DatabaseErrors.ObjectNotFound, typeof(T).Name, id),
             //ErrorType = ErrorType.ObjectNotFound
+        };
+    }
+
+    protected IOperationResult<T> DuplicateObjectError<T>(string id) where T : class
+    {
+        return new GenericOperationResult<T>
+        {
+            //ErrorType = ErrorType.DuplicateObject,
+            ErrorMessage = GetTranslatedString(DatabaseErrors.DuplicateObject, typeof(T).Name, id)
+        };
+    }
+
+    protected IOperationResult<T> DuplicateNameError<T>(string name) where T : class
+    {
+        return new GenericOperationResult<T>
+        {
+            //ErrorType = ErrorType.DuplicateObject,
+            ErrorMessage = GetTranslatedString(DatabaseErrors.DuplicateName, name)
         };
     }
 

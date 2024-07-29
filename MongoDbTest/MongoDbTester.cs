@@ -40,6 +40,7 @@ internal class MongoDbTester
 
     internal async Task RunPluginTest()
     {
+        List<Guid> rollbackObjects = [];
         var pluginConfig = new PluginConfiguration
         {
             Id = Guid.NewGuid(),
@@ -74,70 +75,97 @@ internal class MongoDbTester
 
         var rawConfig = pluginConfig3.ToJsonString();
 
-        var addRes = await db.AddPluginConfig(pluginConfig, userInfo).ConfigureAwait(false);
-        if (addRes.IsSuccess)
+        try
         {
-            var getRes = db.GetPluginConfig(pluginConfig.Id, userInfo);
-            var rawRes = db.GetRawPluginConfiguration(pluginConfig.Id, userInfo);
-        }
-
-        addRes = await db.AddPluginConfig(pluginConfig2, userInfo).ConfigureAwait(false);
-        if (addRes.IsSuccess)
-        {
-            var getRes = db.GetPluginConfig(pluginConfig2.Id, userInfo);
-            var rawRes = db.GetRawPluginConfiguration(pluginConfig2.Id, userInfo);
-        }
-
-        addRes = await db.AddOrUpdatePluginConfig(pluginConfig3.Id, rawConfig, userInfo).ConfigureAwait(false);
-        if (addRes.IsSuccess)
-        {
-            var getRes = db.GetPluginConfig(pluginConfig3.Id, userInfo);
-            var rawRes = db.GetRawPluginConfiguration(pluginConfig3.Id, userInfo);
-        }
-
-
-        var allConfigs = db.GetAllPluginConfigurations(userInfo);
-
-        pluginConfig3.Name = "another name";
-        pluginConfig3.SpecialConfig.Value2 = "vaaaaalllllluuuuuueeeee";
-        rawConfig = pluginConfig3.ToJsonString();
-
-        var rawUpdateRes = await db.AddOrUpdatePluginConfig(pluginConfig3.Id, rawConfig, userInfo).ConfigureAwait(false);
-        if (rawUpdateRes.IsSuccess)
-        {
-            var getRes = db.GetPluginConfig(pluginConfig3.Id, userInfo);
-            var rawRes = db.GetRawPluginConfiguration(pluginConfig3.Id, userInfo);
-        }
-
-
-        pluginConfig.Name = "gugu";
-        var updateRes = await db.UpdateConfig(pluginConfig, userInfo).ConfigureAwait(false);
-        if (updateRes.IsSuccess)
-        {
-            var getRes = db.GetPluginConfig(pluginConfig.Id, userInfo);
-            if (getRes.IsSuccess)
+            var addRes = await db.AddPluginConfig(pluginConfig, userInfo).ConfigureAwait(false);
+            if (addRes.IsSuccess)
             {
-                if (getRes.Result.Name == pluginConfig.Name)
-                    Log($"Successfully updated plugin config {nameof(pluginConfig)}", 4);
-                else
-                    Log($"Modified values of plugin config {nameof(pluginConfig)} could not be written", 2);
+                rollbackObjects.Add(pluginConfig.Id);
+                var getRes = db.GetPluginConfig(pluginConfig.Id, userInfo);
+                var rawRes = db.GetRawPluginConfiguration(pluginConfig.Id, userInfo);
             }
-            else
-                Log($"Unable to update plugin config of {nameof(pluginConfig)}: {getRes}", 2);
+
+            addRes = await db.AddPluginConfig(pluginConfig2, userInfo).ConfigureAwait(false);
+            if (addRes.IsSuccess)
+            {
+                rollbackObjects.Add(pluginConfig2.Id);
+                var getRes = db.GetPluginConfig(pluginConfig2.Id, userInfo);
+                var rawRes = db.GetRawPluginConfiguration(pluginConfig2.Id, userInfo);
+            }
+
+            addRes = await db.AddOrUpdatePluginConfig(pluginConfig3.Id, rawConfig, userInfo).ConfigureAwait(false);
+            if (addRes.IsSuccess)
+            {
+                rollbackObjects.Add(pluginConfig3.Id);
+                var getRes = db.GetPluginConfig(pluginConfig3.Id, userInfo);
+                var rawRes = db.GetRawPluginConfiguration(pluginConfig3.Id, userInfo);
+            }
+
+
+            var allConfigs = db.GetAllPluginConfigurations(userInfo);
+
+            pluginConfig3.Name = "another name";
+            pluginConfig3.SpecialConfig.Value2 = "vaaaaalllllluuuuuueeeee";
+            rawConfig = pluginConfig3.ToJsonString();
+
+            var rawUpdateRes = await db.AddOrUpdatePluginConfig(pluginConfig3.Id, rawConfig, userInfo).ConfigureAwait(false);
+            if (rawUpdateRes.IsSuccess)
+            {
+                var getRes = db.GetPluginConfig(pluginConfig3.Id, userInfo);
+                var rawRes = db.GetRawPluginConfiguration(pluginConfig3.Id, userInfo);
+            }
+
+
+            pluginConfig.Name = "gugu";
+            var updateRes = await db.UpdateConfig(pluginConfig, userInfo).ConfigureAwait(false);
+            if (updateRes.IsSuccess)
+            {
+                var getRes = db.GetPluginConfig(pluginConfig.Id, userInfo);
+                if (getRes.IsSuccess)
+                {
+                    if (getRes.Result.Name == pluginConfig.Name)
+                        Log($"Successfully updated plugin config {nameof(pluginConfig)}", 4);
+                    else
+                        Log($"Modified values of plugin config {nameof(pluginConfig)} could not be written", 2);
+                }
+                else
+                    Log($"Unable to update plugin config of {nameof(pluginConfig)}: {getRes}", 2);
+            }
+
+            pluginConfig2.Name = "habla bimbam";
+            pluginConfig2.SpecialConfig.Value2 = "gaga";
+
+            updateRes = await db.UpdateConfig(pluginConfig2, userInfo).ConfigureAwait(false);
+            if (updateRes.IsSuccess)
+            {
+                var getRes = db.GetPluginConfig(pluginConfig2.Id, userInfo);
+            }
+
+            var deleteRes = await db.DeleteConfig(pluginConfig.Id, userInfo).ConfigureAwait(false);
+            if (deleteRes.IsSuccess)
+                rollbackObjects.Remove(pluginConfig.Id);
+            deleteRes = await db.DeleteConfig(pluginConfig2.Id, userInfo).ConfigureAwait(false);
+            if (deleteRes.IsSuccess)
+                rollbackObjects.Remove(pluginConfig2.Id);
+            deleteRes = await db.DeleteConfig(pluginConfig3.Id, userInfo).ConfigureAwait(false);
+            if (deleteRes.IsSuccess)
+                rollbackObjects.Remove(pluginConfig3.Id);
         }
-
-        pluginConfig2.Name = "habla bimbam";
-        pluginConfig2.SpecialConfig.Value2 = "gaga";
-
-        updateRes = await db.UpdateConfig(pluginConfig2, userInfo).ConfigureAwait(false);
-        if (updateRes.IsSuccess)
+        catch (Exception e)
         {
-            var getRes = db.GetPluginConfig(pluginConfig2.Id, userInfo);
+            Log($"Unhandled exception in plugin test: {e.Message}", 2);
         }
-
-        var deleteRes = await db.DeleteConfig(pluginConfig.Id, userInfo).ConfigureAwait(false);
-        deleteRes = await db.DeleteConfig(pluginConfig2.Id, userInfo).ConfigureAwait(false);
-        deleteRes = await db.DeleteConfig(pluginConfig3.Id, userInfo).ConfigureAwait(false);
+        finally
+        {
+            foreach (var id in rollbackObjects)
+            {
+                var deleteRes = await db.DeleteConfig(id, userInfo).ConfigureAwait(false);
+                if (deleteRes.IsSuccess)
+                    Log($"Successfully removed plugin config {id}", 4);
+                else
+                    Log($"Unable to remove plugin config {id}: {deleteRes}", 2);
+            }
+        }
     }
 
     internal async Task RunPhonebookTests()
@@ -158,12 +186,18 @@ internal class MongoDbTester
         PhoneBookCategory category1 = new()
         {
             //Id = Guid.NewGuid(),
-            Name = "Category1"
+            Name = "Category1",
+            SubProp = new TestObject { StringProp = "guguseli", IntProp = 10 }
         };
         PhoneBookCategory category2 = new()
         {
             //Id = Guid.NewGuid(),
             Name = "Category2"
+        };
+        PhoneBookCategory category3 = new()
+        {
+            //Id = Guid.NewGuid(),
+            Name = "special Subcategory3"
         };
 
         PhoneBookContact contact1 = new()
@@ -213,81 +247,101 @@ internal class MongoDbTester
 
         try
         {
-            var addRes = db.AddObject(pb1, userInfo);
+            var addRes = await db.AddObject(pb1, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(pb1);
 
-            addRes = db.AddObject(pb2, userInfo);
+            addRes = await db.AddObject(pb2, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(pb2);
             category1.PhoneBookIds = [pb1.Id];
             category2.PhoneBookIds = [pb2.Id, pb1.Id];
 
-            addRes = db.AddObject(category1, userInfo);
+            addRes = await db.AddObject(category1, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
             {
+                var getRes = await db.GetObject<PhoneBookCategory>(category1.Id, userInfo).ConfigureAwait(false);
+                if (getRes.IsSuccess)
+                    category1 = getRes.Result;
                 rollbackObjects.Add(category1);
 
                 category1.Name = "category11";
 
-                var catUpdateRes = db.UpdateObject(category1, userInfo);
+                var catUpdateRes = await db.UpdateObject(category1, userInfo).ConfigureAwait(false);
                 if (catUpdateRes.IsSuccess)
                 {
-                    var catRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
+                    var catRes = await db.GetObject<PhoneBookCategory>(category1.Id, userInfo).ConfigureAwait(false);
                     if (catRes.IsSuccess)
                     {
                         if (catRes.Result.Name == category1.Name)
                         {
-                            Log($"Validated delta update of category {category1.Id}", 4);
+                            Log($"Validated full update of category {category1.Id}", 4);
                             category1 = catRes.Result;
                         }
                         else
-                            Log($"Delta update of category {category1} didn't take, expected: {category1.Name}, received: {catRes.Result.Name}", 2);
+                            Log($"Full update of category {category1} didn't take, expected: {category1.Name}, received: {catRes.Result.Name}", 2);
                     }
                 }
 
                 DeltaBaseObject<PhoneBookCategory> deltaUpdate = new()
                 {
-                    IncludedProperties = [nameof(PhoneBookCategory.Name)],
-                    Data = new PhoneBookCategory { Name = "updated category 1" }
+                    IncludedProperties = [nameof(PhoneBookCategory.Name), nameof(PhoneBookCategory.SubProp)],
+                    IncludedPropertiesIncludingPath = [nameof(PhoneBookCategory.Name), $"{nameof(PhoneBookCategory.SubProp)}.{nameof(TestObject.IntProp)}"],
+                    Data = new PhoneBookCategory { Name = "updated category 1", SubProp = new TestObject { IntProp = 5 } }
                 };
-                catUpdateRes = db.UpdateObject(category1.Id, deltaUpdate, userInfo);
+                catUpdateRes = await db.UpdateObject(category1.Id, deltaUpdate, userInfo).ConfigureAwait(false);
                 if (catUpdateRes.IsSuccess)
                 {
-                    var catRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
+                    var catRes = await db.GetObject<PhoneBookCategory>(category1.Id, userInfo).ConfigureAwait(false);
                     if (catRes.IsSuccess)
                     {
                         if (catRes.Result.Name == deltaUpdate.Data.Name)
                         {
-                            Log($"Validated delta update of category {category1.Id}", 4);
+                            Log($"Validated delta name update of category {category1.Id}", 4);
                             category1 = catRes.Result;
                         }
                         else
-                            Log($"Delta update of category {category1} didn't take, expected: {deltaUpdate.Data.Name}, received: {catRes.Result.Name}", 2);
+                            Log($"Delta name update of category {category1} didn't take, expected: {deltaUpdate.Data.Name}, received: {catRes.Result.Name}", 2);
+                        if (catRes.Result.SubProp?.IntProp == 5)
+                        {
+                            Log($"Validated subproperty delta update of category {category1.Id}", 4);
+                            category1 = catRes.Result;
+                        }
+                        else
+                            Log($"Delta update of category {category1} didn't take, expected: {deltaUpdate.Data.SubProp.IntProp}, received: {catRes.Result.SubProp?.IntProp}", 2);
                     }
                 }   
             }
 
-            addRes = db.AddObject(category2, userInfo);
+            addRes = await db.AddObject(category2, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(category2);
-            var categoryRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
+            var categoryRes = await db.GetObject<PhoneBookCategory>(category2.Id, userInfo).ConfigureAwait(false);
+
+            addRes = await db.AddObject(category3, userInfo).ConfigureAwait(false);
+            if (addRes.IsSuccess)
+                rollbackObjects.Add(category3);
+            categoryRes = await db.GetObject<PhoneBookCategory>(category3.Id, userInfo).ConfigureAwait(false);
 
             if (addRes.IsSuccess)
             {
                 var newDescription = "hello world";
                 ExtendedMassUpdateParameters<PhoneBookCategory> massUpdates = new()
                 {
-                    Ids = [category1.Id, category2.Id],
+                    Ids = [category1.Id, category2.Id, category3.Id],
                     IncludedProperties = [nameof(PhoneBookCategory.Description)],
                     TemplateObject = new PhoneBookCategory { Description = newDescription },
                     Values = new Dictionary<string, object> { { nameof(PhoneBookCategory.Description), newDescription } }
                 };
 
-                var massUpdateRes = db.BulkUpdateObject(massUpdates, userInfo);
+                var massUpdateRes = await db.BulkUpdateObject(massUpdates, userInfo).ConfigureAwait(false);
                 if (massUpdateRes.IsSuccess)
                 {
-                    var checkRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo);
+                    if (massUpdateRes.Result != massUpdates.Ids.Count)
+                        Log($"Number of updated descriptions doesn't match. Number expected: {massUpdates.Ids.Count}, updated: {massUpdateRes.Result}", 2);
+                    else
+                        Log("Number of updated descriptions matches", 4);
+                    var checkRes = await db.GetObject<PhoneBookCategory>(category1.Id, userInfo).ConfigureAwait(false);
                     if (checkRes.IsSuccess)
                     {
                         if (checkRes.Result.Description == newDescription)
@@ -298,20 +352,20 @@ internal class MongoDbTester
                 }
             }
 
-            addRes = db.AddObject(manager, userInfo);
+            addRes = await db.AddObject(manager, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(manager);
-            addRes = db.AddObject(secretary, userInfo);
+            addRes = await db.AddObject(secretary, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(secretary);
 
             contact1.ManagerId = manager.Id;
             contact1.SecretaryIds = [secretary.Id, manager.Id];
 
-            addRes = db.AddObject(contact1, userInfo);
+            addRes = await db.AddObject(contact1, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(contact1);
-            addRes = db.AddObject(contact2, userInfo);
+            addRes = await db.AddObject(contact2, userInfo).ConfigureAwait(false);
             if (addRes.IsSuccess)
                 rollbackObjects.Add(contact2);
 
@@ -319,18 +373,18 @@ internal class MongoDbTester
 
             var getFullCategoryRes = db.GetCategory(category2.Id, userInfo, true);
 
-            var contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo);
-            contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo);
+            var contactRes = await db.GetObject<PhoneBookContact>(contact1.Id, userInfo).ConfigureAwait(false);
+            contactRes = await db.GetObject<PhoneBookContact>(contact2.Id, userInfo).ConfigureAwait(false);
 
             var associateRes = db.AssociateWithCategory(contact1.Id, category1.Id, userInfo);
-            contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true);
-            categoryRes = db.GetObject<PhoneBookCategory>(category1.Id, userInfo, true);
+            contactRes = await db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true).ConfigureAwait(false);
+            categoryRes = await db.GetObject<PhoneBookCategory>(category1.Id, userInfo, true).ConfigureAwait(false);
 
             associateRes = db.AssociateWithCategory(contact1.Id, category2.Id, userInfo);
             associateRes = db.AssociateWithCategory(contact2.Id, category2.Id, userInfo);
 
-            contactRes = db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true);
-            contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+            contactRes = await db.GetObject<PhoneBookContact>(contact1.Id, userInfo, true).ConfigureAwait(false);
+            contactRes = await db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true).ConfigureAwait(false);
 
             await CategorySearchTest(category1, category2, pb1, pb2).ConfigureAwait(false);
 
@@ -341,10 +395,10 @@ internal class MongoDbTester
                 var tempContact2 = contactRes.Result;
                 tempContact2.CategoryIds ??= [];
                 tempContact2.CategoryIds.Add(category1.Id);
-                var updateRes = db.UpdateObject(tempContact2, userInfo);
+                var updateRes = await db.UpdateObject(tempContact2, userInfo).ConfigureAwait(false);
                 if (updateRes.IsSuccess)
                 {
-                    contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+                    contactRes = await db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true).ConfigureAwait(false);
                     if (contactRes.IsSuccess)
                     {
                         if (contactRes.Result.CategoryIds?.Contains(category1.Id) == true)
@@ -360,10 +414,10 @@ internal class MongoDbTester
                 //tempContact2.Categories.RemoveAll(u => u.Id == category1.Id);
                 tempContact2.CategoryIds?.Remove(category1.Id);
 
-                updateRes = db.UpdateObject(tempContact2, userInfo);
+                updateRes = await db.UpdateObject(tempContact2, userInfo).ConfigureAwait(false);
                 if (updateRes.IsSuccess)
                 {
-                    contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+                    contactRes = await db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true).ConfigureAwait(false);
                     if (contactRes.IsSuccess)
                     {
                         if (contactRes.Result.CategoryIds?.Contains(category1.Id) == true)
@@ -374,24 +428,24 @@ internal class MongoDbTester
                     else
                         Log($"Unable to extract contact {contact2.Id}: {contactRes}", 2);
                 }
-                contactRes = db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true);
+                contactRes = await db.GetObject<PhoneBookContact>(contact2.Id, userInfo, true).ConfigureAwait(false);
             }
 
             List<string> idsToDelete = [category1.Id, category2.Id];
-            var bulkDeletRes = db.BulkDelete<PhoneBookCategory>(idsToDelete, userInfo);
-            if (bulkDeletRes.IsSuccess)
+            var bulkDeleteRes = await db.BulkDelete<PhoneBookCategory>(idsToDelete, userInfo).ConfigureAwait(false);
+            if (bulkDeleteRes.IsSuccess)
             {
-                if (bulkDeletRes.Result == 2)
+                if (bulkDeleteRes.Result == 2)
                 {
                     Log($"Successfully validated bulk delete of PhoneBookCategory", 4);
                     rollbackObjects.RemoveAll(u => u.Id == category1.Id);
                     rollbackObjects.RemoveAll(u => u.Id == category2.Id);
                 }
                 else
-                    Log($"Unable to validate bulk delete of PhoneBookCategory. expected to delete 2, actually deleted: {bulkDeletRes.Result}", 2);
+                    Log($"Unable to validate bulk delete of PhoneBookCategory. expected to delete 2, actually deleted: {bulkDeleteRes.Result}", 2);
             }
             else
-                Log($"Bulk delete of PhoneBookCategory failed: {bulkDeletRes}", 2);
+                Log($"Bulk delete of PhoneBookCategory failed: {bulkDeleteRes}", 2);
         }
         catch (Exception e)
         {
@@ -404,15 +458,15 @@ internal class MongoDbTester
                 IOperationResult deleteRes = null;
                 if (rollbackObject is PhoneBook pb)
                 {
-                    deleteRes = db.DeleteObject<PhoneBook>(pb.Id, userInfo);
+                    deleteRes = await db.DeleteObject<PhoneBook>(pb.Id, userInfo).ConfigureAwait(false);
                 }
                 else if (rollbackObject is PhoneBookCategory pbCat)
                 {
-                    deleteRes = db.DeleteObject<PhoneBookCategory>(pbCat.Id, userInfo);
+                    deleteRes = await db.DeleteObject<PhoneBookCategory>(pbCat.Id, userInfo).ConfigureAwait(false);
                 }
                 else if (rollbackObject is PhoneBookContact pbContact)
                 {
-                    deleteRes = db.DeleteObject<PhoneBookContact>(pbContact.Id, userInfo);
+                    deleteRes = await db.DeleteObject<PhoneBookContact>(pbContact.Id, userInfo).ConfigureAwait(false);
                 }
                 if (deleteRes.IsSuccess)
                     Log($"Successfully deleted {rollbackObject.GetType().Name} {rollbackObject.Id}", 4);
@@ -649,7 +703,7 @@ internal class MongoDbTester
             else
             {
                 if (searchRes.Result.Results[0].Id != contact1.Id)
-                    Log($"Sort didn't work, first item in't {contact1.FirstName}", 2);
+                    Log($"Sort didn't work, first item isn't {contact1.FirstName}", 2);
             }
         }
     }
@@ -666,7 +720,7 @@ internal class MongoDbTester
         var searchRes = db.SearchObjects<PhoneBookCategory>(searchParameters, userInfo);
         if (searchRes.IsSuccess)
         {
-            if (searchRes.Result.Results.Count != 2)
+            if (searchRes.Result.Results.Count != 3)
             {
                 Log($"Not all categories found, expected: 2, received {searchRes.Result.Results.Count}", 2);
             }
@@ -716,10 +770,83 @@ internal class MongoDbTester
             {
                 Log($"result does not include {category1.Name}", 2);
             }
+            if (searchRes.Result.Results.Count != 2)
+            {
+                Log($"Not all categories found, expected: 2, received {searchRes.Result.Results.Count}", 2);
+            }
+        }
+        else
+            Log($"searching for categories failed: {searchRes}", 2);
+
+        searchParameters = new PhoneBookCategorySearchParameters
+        {
+            SearchParameters = [new GenericSearchParameter
+            {
+                FieldName = nameof(PhoneBookCategory.PhoneBookIds),
+                FieldOperator = ComparisonOperator.Contains,
+                FieldValue = new Newtonsoft.Json.Linq.JArray(new string[] { pb1.Id, pb2.Id }),
+            }]
+        };
+        searchRes = db.SearchObjects<PhoneBookCategory>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            var itemsWithoutPhonebooks = searchRes.Result.Results.Where(x => !x.PhoneBookIds.Contains(pb1.Id) && !x.PhoneBookIds.Contains(pb2.Id)).ToList();
+            if (itemsWithoutPhonebooks.Count > 0)
+            {
+                Log($"result includes elements that are not part of neither phonebook1 nor phonebook2: {string.Join(",", itemsWithoutPhonebooks.Select(x => x.Name))}", 2);
+            }
+            else
+                Log($"All categories found that are in either phonebook1 or phonebook2", 4);
+        }
+        else
+            Log($"searching for categories failed: {searchRes}", 2);
+
+        searchParameters = new PhoneBookCategorySearchParameters
+        {
+            SearchParameters = [new GenericSearchParameter
+            {
+                FieldName = nameof(PhoneBookCategory.Name),
+                FieldOperator = ComparisonOperator.EndsWith,
+                FieldValue = "2"
+            }]
+        };
+        searchRes = db.SearchObjects<PhoneBookCategory>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (!searchRes.Result.Results.Any(x => x.Id == category2.Id))
+            {
+                Log($"result does not include {category1.Name}", 2);
+            }
 
             if (searchRes.Result.Results.Count != 1)
             {
-                Log($"Not all categories found, expected: 2, received {searchRes.Result.Results.Count}", 2);
+                Log($"Not all categories found, expected: 1, received {searchRes.Result.Results.Count}", 2);
+            }
+        }
+        else
+            Log($"searching for categories failed: {searchRes}", 2);
+        searchParameters = new PhoneBookCategorySearchParameters
+        {
+            SearchParameters = [new GenericSearchParameter
+            {
+                FieldName = nameof(PhoneBookCategory.Name),
+                FieldOperator = ComparisonOperator.Contains,
+                FieldValue = "category"
+            }],
+            SortAscending = false,
+            SortBy = nameof(PhoneBookCategory.Name)
+        };
+        searchRes = db.SearchObjects<PhoneBookCategory>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (searchRes.Result.Results.Count != 3)
+            {
+                Log($"Not all categories found, expected: 3, received {searchRes.Result.Results.Count}", 2);
+            }
+            else
+            {
+                if (searchRes.Result.Results[0].Id != category1.Id)
+                    Log($"Sort didn't work, first item isn't {category2.Name}", 2);
             }
         }
         else
