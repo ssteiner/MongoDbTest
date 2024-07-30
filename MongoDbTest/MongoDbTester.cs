@@ -706,6 +706,27 @@ internal class MongoDbTester
                     Log($"Sort didn't work, first item isn't {contact1.FirstName}", 2);
             }
         }
+
+        searchParameters = new PhoneBookContactSearchParameters()
+        {
+            SearchParameters =
+            [ // gets us contact 1
+                new() { FieldName = nameof(PhoneBookContact.ManagerId), FieldOperator = ComparisonOperator.NotEqualTo, FieldValue = manager.Id }
+            ]
+        };
+        searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);
+        if (searchRes.IsSuccess)
+        {
+            if (searchRes.Result.Results.Count != 1)
+            {
+                Log($"Not all contacts, expected: 1, received {searchRes.Result.Results.Count}", 2);
+            }
+            else
+            {
+                if (searchRes.Result.Results[0].Id != contact1.Id)
+                    Log($"Sort didn't work, first item isn't {contact1.FirstName}", 2);
+            }
+        }
     }
 
     private async Task CategorySearchTest(PhoneBookCategory category1, PhoneBookCategory category2, PhoneBook pb1, PhoneBook pb2)

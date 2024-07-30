@@ -555,8 +555,10 @@ internal class MongoDbContext
             }
             bool isSorted = false;
             query = FilterSearch(query, parameters);
-            var queryable = query as IQueryable<T>;
-            query = FilterHelpers.AppendGenericFilter(queryable, parameters, ref isSorted) as IMongoQueryable<T>;
+            query = query.AppendGenericFilter(parameters, ref isSorted);
+
+            //var queryable = query as IQueryable<T>;
+            //query = FilterHelpers.AppendGenericFilter(queryable, parameters, ref isSorted) as IMongoQueryable<T>;
             if (!isSorted)
             {
                 if (typeof(PhoneBookContact).IsAssignableFrom(typeof(T))) // phonebook contact

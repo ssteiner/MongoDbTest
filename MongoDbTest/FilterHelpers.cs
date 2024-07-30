@@ -65,7 +65,7 @@ internal static class FilterHelpers
                 var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"^{parameters.Name}", RegexOptions.IgnoreCase));
                 items = items.Where(x => filter.Inject());
                 //var query = parameters.Name.ToLower();
-                //items = items.Where(PredicateBuilder.StartsWithPredicate<T>(nameof(INamedItem.Name), query));
+                //items = items.Where(PredicateBuilder.StartsWithPredicate<T>(nameof(INamedItem.Name), query)); // works but is case sensitive
             }
         }
         if (!string.IsNullOrEmpty(parameters.Query))
@@ -75,14 +75,14 @@ internal static class FilterHelpers
                 var query = parameters.Query.TrimStart('%').ToLower();
                 var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"{query}", RegexOptions.IgnoreCase));
                 items = items.Where(x => filter.Inject());
-                //items = items.Where(PredicateBuilder.ContainsPredicate<T>(nameof(INamedItem.Name), query));
+                //items = items.Where(PredicateBuilder.ContainsPredicate<T>(nameof(INamedItem.Name), query)); // works but is case sensitive
             }
             else
             {
                 var filter = builder.Regex(nameof(INamedItem.Name), new Regex($"^{parameters.Query}", RegexOptions.IgnoreCase));
                 items = items.Where(x => filter.Inject());
                 //var query = parameters.Query.ToLower();
-                //items = items.Where(PredicateBuilder.StartsWithPredicate<T>(nameof(INamedItem.Name), query));
+                //items = items.Where(PredicateBuilder.StartsWithPredicate<T>(nameof(INamedItem.Name), query)); // works but is case sensitive
             }
         }
         return items;
@@ -248,6 +248,7 @@ internal static class FilterHelpers
         if ((parameters.SearchParameters == null || parameters.SearchParameters.Count <= 0) &&
             string.IsNullOrEmpty(parameters.SortBy)) return items;
         Filter filter = null;
+        var builder = Builders<T>.Filter;
         if (parameters.SearchParameters != null && parameters.SearchParameters.Count > 0)
         {
             filter = new Filter
@@ -260,25 +261,9 @@ internal static class FilterHelpers
                 var op = GetComparisonOperator(p);
                 if (p.FieldValueCollection != null) // it's an array
                 {
-                    if (p.FieldValueCollection.Count == 1)
-                    {
-                        var myFilter = PredicateBuilder.ContainsPredicate<T>(p.FieldName, p.FieldValueCollection[0]);
-                        //QueryHelper.AddSearchFilter<T>(mappingAttribute.DatabaseFieldName, p.FieldValueCollection[0], op, filter);
-                        items = items.Where(myFilter);
-                    }
-                    else
-                    {
-                        var myFilter = PredicateBuilder.ContainsPredicate<T>(p.FieldName, p.FieldValueCollection[0]);
-                        var fullFilter = myFilter;
-                        foreach (var fieldValue in p.FieldValueCollection.Skip(1))
-                        {
-                            myFilter = PredicateBuilder.ContainsPredicate<T>(p.FieldName, fieldValue);
-                            fullFilter = PredicateBuilder.Or(fullFilter, myFilter);
-                            //items = items.Where(myFilter);
-                            //QueryHelper.AddSearchFilter<T>(mappingAttribute.DatabaseFieldName, fieldValue, DynamicQuery.ComparisonOperator.Contains, filter);
-                        }
-                        items = items.Where(fullFilter);
-                    }
+                    //var values = p.FieldValueCollection.Select(x => new StringOrRegularExpression(x));
+                    var anyFilter = builder.In(p.FieldName, p.FieldValueCollection);
+                    items = items.Where(x => anyFilter.Inject());
                 }
                 else
                 {
@@ -337,183 +322,164 @@ internal static class FilterHelpers
         return DynamicQuery.BooleanOperator.And;
     }
 
-    //internal static IMongoQueryable<T> AppendGenericFilter<T>(IMongoQueryable<T> items, GenericSearchParameters parameters, ref bool isSorted)
-    //{
-    //    if (!string.IsNullOrEmpty(parameters.SortBy))
-    //    {
-    //        ParameterExpression pe = Expression.Parameter(typeof(T), "t");
-    //        MemberExpression me = Expression.Property(pe, parameters.SortBy);
-    //        Expression conversion = Expression.Convert(me, typeof(object));
-    //        Expression<Func<T, object>> orderExpression = Expression.Lambda<Func<T, object>>(conversion, [pe]);
+    internal static IMongoQueryable<T> AppendGenericFilter<T>(this IMongoQueryable<T> items, GenericSearchParameters parameters, ref bool isSorted)
+    {
+        if (!string.IsNullOrEmpty(parameters.SortBy))
+        {
+            var sortExpression = parameters.SortAscending == false ? Builders<T>.Sort.Descending(parameters.SortBy) : Builders<T>.Sort.Ascending(parameters.SortBy);
 
-    //        if (parameters.SortAscending == false)
-    //            items = items.OrderByDescending(orderExpression);
-    //        else
-    //            items = items.OrderBy(orderExpression);
-    //        isSorted = true;
-    //    }
-    //    if (parameters.SearchParameters == null || parameters.SearchParameters.Count < 1)
-    //        return items;
+            items = items.OrderBy(sortExpression);
 
-    //    var builder = Builders<T>.Filter;
-    //    List<FilterDefinition<T>> filters = [];
+            ParameterExpression pe = Expression.Parameter(typeof(T), "t");
+            MemberExpression me = Expression.Property(pe, parameters.SortBy);
+            Expression conversion = Expression.Convert(me, typeof(object));
+            Expression<Func<T, object>> orderExpression = Expression.Lambda<Func<T, object>>(conversion, [pe]);
 
-    //    List<Expression<Func<T, bool>>> expressions = [];
-    //    //BsonExpression queryOperator = parameters.Operator == BooleanOperator.Or ? Query.Or() : Query.And;
-    //    foreach (var p in parameters.SearchParameters.Where(x => !string.IsNullOrEmpty(x.FieldName)))
-    //    {
-    //        if (p.FieldValueCollection != null) // it's an array
-    //        {
-    //            var values = p.FieldValueCollection.Select(x => new StringOrRegularExpression(x));
-    //            filters.Add(builder.StringIn(p.FieldName, values));
-    //            if (p.FieldValueCollection.Count == 1)
-    //            {
-    //                var myFilter = PredicateBuilder.ContainsPredicate<T>(p.FieldName, p.FieldValueCollection[0]);
-    //                expressions.Add(myFilter);
-    //                //items = items.Where(myFilter);
-    //            }
-    //            else
-    //            {
-    //                var myFilter = PredicateBuilder.ContainsPredicate<T>(p.FieldName, p.FieldValueCollection[0]);
-    //                var fullFilter = myFilter;
-    //                foreach (var fieldValue in p.FieldValueCollection.Skip(1))
-    //                {
-    //                    myFilter = PredicateBuilder.ContainsPredicate<T>(p.FieldName, fieldValue);
-    //                    fullFilter = PredicateBuilder.Or(fullFilter, myFilter);
-    //                }
-    //                expressions.Add(fullFilter);
-    //                //items = items.Where(fullFilter);
-    //            }
-    //        }
-    //        else
-    //        {
-    //            //Builders<T>.Sort.Ascending(x => x.na)
-    //            if ((p.FieldValue != null && !string.IsNullOrEmpty(p.FieldValueString)) || IsEmptyValueOperator(p))
-    //            {
-    //                if (!IsAllowed<T>(p.FieldOperator, p.FieldName))
-    //                    continue;
-    //                if (p.FieldName.ToLower().EndsWith("id")) // assuming it's a referenced table, so we search on the linked object instead
-    //                {
-    //                    p.FieldName = $"{p.FieldName[..^2]}.$id";
-    //                    if (p.FieldValue != null)
-    //                    {
-    //                        Guid myGuid = Guid.Empty;
-    //                        if (Guid.TryParse(p.FieldValue, out myGuid))
-    //                            p.FieldValue = myGuid;
-    //                    }
-    //                }
-    //                switch (p.FieldOperator)
-    //                {
-    //                    case ComparisonOperator.EqualTo:
-    //                        filters.Add(builder.Eq(p.FieldName, p.FieldValue));
-    //                        break;
-    //                    case ComparisonOperator.NotEqualTo:
-    //                        filters.Add(builder.Not(p.FieldName));
-    //                        //filters.Add(Query.Not(p.FieldName, p.FieldValue));
-    //                        break;
-    //                    case ComparisonOperator.Contains:
-    //                        filters.Add(builder.StringIn(p.FieldName, p.FieldValue));
-    //                        expressions.Add(PredicateBuilder.ContainsPredicate<T>(p.FieldName, p.FieldValueString));
-    //                        //items = items.Where(containsFilter);
-    //                        break;
-    //                    case ComparisonOperator.StartsWith:
-    //                        filters.Add(builder.Regex(p.FieldName, new Regex($"^{p.FieldValue}", RegexOptions.IgnoreCase)));
-    //                        expressions.Add(PredicateBuilder.StartsWithPredicate<T>(p.FieldName, p.FieldValueString));
-    //                        //items = items.Where(startsWithFilter);
-    //                        ////filters.Add(Query.Contains(p.FieldName, p.FieldValueString));
-    //                        break;
-    //                    case ComparisonOperator.EndsWith:
-    //                        filters.Add(builder.Regex(p.FieldName, new Regex($"{p.FieldValue}$", RegexOptions.IgnoreCase)));
-    //                        expressions.Add(PredicateBuilder.EndsWithWithPredicate<T>(p.FieldName, p.FieldValueString));
-    //                        //items = items.Where(endsWithFilter);
-    //                        ////filters.Add(Query.Contains(p.FieldName, p.FieldValueString));
-    //                        break;
-    //                    case ComparisonOperator.LessThanOrEqualTo:
-    //                        filters.Add(builder.Lte(p.FieldName, p.FieldValueString));
-    //                        break;
-    //                    case ComparisonOperator.LessThan:
-    //                        filters.Add(builder.Lt(p.FieldName, p.FieldValueString));
-    //                        break;
-    //                    case ComparisonOperator.MoreThan:
-    //                        filters.Add(builder.Gt(p.FieldName, p.FieldValueString));
-    //                        break;
-    //                    case ComparisonOperator.MoreThanOrEqualTo:
-    //                        filters.Add(builder.Gte(p.FieldName, p.FieldValueString));
-    //                        break;
-    //                    case ComparisonOperator.IsEmpty:
-    //                        filters.Add(builder.Eq(p.FieldName, BsonNull.Value));
-    //                        break;
-    //                    case ComparisonOperator.IsNotEmpty:
-    //                        filters.Add(builder.Ne(p.FieldName, BsonNull.Value));
-    //                        //filters.Add(Query.Not(p.FieldName, null));
-    //                        break;
-    //                }
-    //            }
-    //        }
-    //    }
-    //    if (expressions.Count > 1)
-    //    {
-    //        var fullExpression = expressions.First();
-    //        foreach (var otherExpression in expressions.Skip(1))
-    //        {
-    //            fullExpression = PredicateBuilder.Or(fullExpression, otherExpression);
-    //        }
-    //        return items.Where(fullExpression);
-    //    }
-    //    else if (expressions.Count == 1)
-    //    {
-    //        return items.Where(expressions.First());
-    //    }
-    //    return items;
-    //    //if (filters.Count > 1)
-    //    //{
-    //    //    var fullQuery = parameters.Operator == BooleanOperator.Or ? builder.Or(filters) : builder.And(filters);
-    //    //    //BsonExpression fullQuery = parameters.Operator == BooleanOperator.Or ? Query.Or([.. filters]) : Query.And([.. filters]);
-    //    //    return items.Where(fullQuery);
-    //    //}
-    //    //else if (filters.Count > 0)
-    //    //    return items.Where(filters[0]);
-    //    //return items;
-    //}
+            if (parameters.SortAscending == false)
+                items = items.OrderByDescending(orderExpression);
+            else
+                items = items.OrderBy(orderExpression);
+            isSorted = true;
+        }
+        if (parameters.SearchParameters == null || parameters.SearchParameters.Count < 1)
+            return items;
 
-    //private static bool IsAllowed<T>(ComparisonOperator? op, string fieldName)
-    //{
-    //    var memberType = ClassHelpers.GetPropertyType(typeof(T), fieldName);
-    //    if (memberType == typeof(DateTime))
-    //    {
-    //        if (op == ComparisonOperator.Contains || op == ComparisonOperator.StartsWith || op == ComparisonOperator.EndsWith)
-    //            return false; // these operators don't work for dates
-    //    }
-    //    TypeCode tc = Type.GetTypeCode(memberType);
-    //    switch (tc)
-    //    {
-    //        case TypeCode.Boolean:
-    //        case TypeCode.Byte:
-    //        case TypeCode.Char:
-    //        case TypeCode.Decimal:
-    //        case TypeCode.Double:
-    //        case TypeCode.Int16:
-    //        case TypeCode.Int32:
-    //        case TypeCode.Int64:
-    //        case TypeCode.SByte:
-    //        case TypeCode.UInt16:
-    //        case TypeCode.UInt32:
-    //        case TypeCode.UInt64:
-    //            //numeric values that do not support contains, startswith, endswith
-    //            if (op == ComparisonOperator.Contains || op == ComparisonOperator.StartsWith || op == ComparisonOperator.EndsWith)
-    //                return false;
-    //            break;
-    //    }
-    //    return true;
-    //}
+        var builder = Builders<T>.Filter;
+        List<FilterDefinition<T>> filters = [];
 
-    //private static bool IsEmptyValueOperator(GenericSearchParameter p)
-    //{
-    //    return p.FieldOperator switch
-    //    {
-    //        ComparisonOperator.EqualTo or ComparisonOperator.IsEmpty or ComparisonOperator.IsNotEmpty or ComparisonOperator.NotEqualTo => true,
-    //        _ => false,
-    //    };
-    //}
+        List<Expression<Func<T, bool>>> expressions = [];
+        foreach (var p in parameters.SearchParameters.Where(x => !string.IsNullOrEmpty(x.FieldName)))
+        {
+            if (p.FieldValueCollection != null) // it's an array
+            {
+                //var values = p.FieldValueCollection.Select(x => new StringOrRegularExpression(x));
+                filters.Add(builder.In(p.FieldName, p.FieldValueCollection));
+            }
+            else
+            {
+                //Builders<T>.Sort.Ascending(x => x.na)
+                if ((p.FieldValue != null && !string.IsNullOrEmpty(p.FieldValueString)) || IsEmptyValueOperator(p))
+                {
+                    if (!IsAllowed<T>(p.FieldOperator, p.FieldName))
+                        continue;
+                    //if (p.FieldName.ToLower().EndsWith("id")) // assuming it's a referenced table, so we search on the linked object instead //LiteDb only
+                    //{
+                    //    p.FieldName = $"{p.FieldName[..^2]}.$id";
+                    //    if (p.FieldValue != null)
+                    //    {
+                    //        Guid myGuid = Guid.Empty;
+                    //        if (Guid.TryParse(p.FieldValue, out myGuid))
+                    //            p.FieldValue = myGuid;
+                    //    }
+                    //}
+                    switch (p.FieldOperator)
+                    {
+                        case NoSqlModels.ComparisonOperator.EqualTo:
+                            filters.Add(builder.Eq(p.FieldName, p.FieldValue));
+                            break;
+                        case NoSqlModels.ComparisonOperator.NotEqualTo:
+                            filters.Add(builder.Ne(p.FieldName, p.FieldValue));
+                            break;
+                        case NoSqlModels.ComparisonOperator.Contains:
+                            filters.Add(builder.Regex(p.FieldName, new Regex($"{p.FieldValue}", RegexOptions.IgnoreCase)));
+                            //expressions.Add(PredicateBuilder.ContainsPredicate<T>(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.StartsWith:
+                            filters.Add(builder.Regex(p.FieldName, new Regex($"^{p.FieldValue}", RegexOptions.IgnoreCase)));
+                            //expressions.Add(PredicateBuilder.StartsWithPredicate<T>(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.EndsWith:
+                            filters.Add(builder.Regex(p.FieldName, new Regex($"{p.FieldValue}$", RegexOptions.IgnoreCase)));
+                            //expressions.Add(PredicateBuilder.EndsWithWithPredicate<T>(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.LessThanOrEqualTo:
+                            filters.Add(builder.Lte(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.LessThan:
+                            filters.Add(builder.Lt(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.MoreThan:
+                            filters.Add(builder.Gt(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.MoreThanOrEqualTo:
+                            filters.Add(builder.Gte(p.FieldName, p.FieldValueString));
+                            break;
+                        case NoSqlModels.ComparisonOperator.IsEmpty:
+                            filters.Add(builder.Eq(p.FieldName, MongoDB.Bson.BsonNull.Value));
+                            break;
+                        case NoSqlModels.ComparisonOperator.IsNotEmpty:
+                            //builder.Exists(p.FieldName, true);
+                            //filters.Add(builder.Not(builder.Eq(p.FieldName, MongoDB.Bson.BsonNull.Value)));
+                            filters.Add(builder.Ne(p.FieldName, MongoDB.Bson.BsonNull.Value));
+                            break;
+                    }
+                }
+            }
+        }
+
+        if (filters.Count > 1)
+        {
+            var finalFilter = parameters.Operator == NoSqlModels.BooleanOperator.And ? builder.And(filters) : builder.Or(filters);
+            items.Where(x => finalFilter.Inject());
+        }
+        else if (filters.Count > 0)
+            items = items.Where(x => filters[0].Inject());
+        return items;
+
+        //if (expressions.Count > 1)
+        //{
+        //    var fullExpression = expressions.First();
+        //    foreach (var otherExpression in expressions.Skip(1))
+        //    {
+        //        fullExpression = PredicateBuilder.Or(fullExpression, otherExpression);
+        //    }
+        //    return items.Where(fullExpression);
+        //}
+        //else if (expressions.Count == 1)
+        //{
+        //    return items.Where(expressions.First());
+        //}
+        //return items;
+    }
+
+    private static bool IsAllowed<T>(NoSqlModels.ComparisonOperator? op, string fieldName)
+    {
+        var memberType = ClassHelpers.GetPropertyType(typeof(T), fieldName);
+        if (memberType == typeof(DateTime))
+        {
+            if (op == NoSqlModels.ComparisonOperator.Contains || op == NoSqlModels.ComparisonOperator.StartsWith || op == NoSqlModels.ComparisonOperator.EndsWith)
+                return false; // these operators don't work for dates
+        }
+        TypeCode tc = Type.GetTypeCode(memberType);
+        switch (tc)
+        {
+            case TypeCode.Boolean:
+            case TypeCode.Byte:
+            case TypeCode.Char:
+            case TypeCode.Decimal:
+            case TypeCode.Double:
+            case TypeCode.Int16:
+            case TypeCode.Int32:
+            case TypeCode.Int64:
+            case TypeCode.SByte:
+            case TypeCode.UInt16:
+            case TypeCode.UInt32:
+            case TypeCode.UInt64:
+                //numeric values that do not support contains, startswith, endswith
+                if (op == NoSqlModels.ComparisonOperator.Contains || op == NoSqlModels.ComparisonOperator.StartsWith || op == NoSqlModels.ComparisonOperator.EndsWith)
+                    return false;
+                break;
+        }
+        return true;
+    }
+
+    private static bool IsEmptyValueOperator(GenericSearchParameter p)
+    {
+        return p.FieldOperator switch
+        {
+            NoSqlModels.ComparisonOperator.EqualTo or NoSqlModels.ComparisonOperator.IsEmpty or NoSqlModels.ComparisonOperator.IsNotEmpty or NoSqlModels.ComparisonOperator.NotEqualTo => true,
+            _ => false,
+        };
+    }
 
 }
