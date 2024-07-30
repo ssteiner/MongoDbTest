@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ToolsV4-std" Version="1.1.82" />
+    <PackageReference Include="ToolsV4-std" Version="1.1.83" />
   </ItemGroup>
 
 </Project>

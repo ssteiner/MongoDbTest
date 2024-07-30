@@ -19,12 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DynamicQuery" Version="1.0.3" />
+    <PackageReference Include="DynamicQuery" Version="1.0.4" />
     <PackageReference Include="GenericProvisioningLib" Version="1.0.5" />
     <PackageReference Include="MongoDB.Entities" Version="23.1.0" />
     <PackageReference Include="ObjectDiffUtilsNg" Version="1.1.6" />
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.4.3" />
-    <PackageReference Include="ToolsV4-std" Version="1.1.82" />
+    <PackageReference Include="ToolsV4-std" Version="1.1.83" />
   </ItemGroup>
 
   <ItemGroup>
