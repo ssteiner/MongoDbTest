@@ -328,8 +328,6 @@ internal static class FilterHelpers
         {
             var sortExpression = parameters.SortAscending == false ? Builders<T>.Sort.Descending(parameters.SortBy) : Builders<T>.Sort.Ascending(parameters.SortBy);
 
-            items = items.OrderBy(sortExpression);
-
             ParameterExpression pe = Expression.Parameter(typeof(T), "t");
             MemberExpression me = Expression.Property(pe, parameters.SortBy);
             Expression conversion = Expression.Convert(me, typeof(object));
