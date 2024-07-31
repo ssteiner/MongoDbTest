@@ -1,6 +1,6 @@
 ﻿namespace NoSqlModels.MigrationObjects
 {
-    public class MigrationObject
+    public class MigrationObject: IIdItem
     {
         public string Id { get; set; }
 
