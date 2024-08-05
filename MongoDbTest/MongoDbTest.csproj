@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Mongo.Migration-master\Mongo.Migration\Mongo.Migration.csproj" />
     <ProjectReference Include="..\NoSqlModels\NoSqlModels.csproj" />
   </ItemGroup>
 

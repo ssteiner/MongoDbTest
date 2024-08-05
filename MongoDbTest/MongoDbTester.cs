@@ -1,6 +1,11 @@
 ﻿using GeneralTools.Extensions;
 using GenericProvisioningLib;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Mongo.Migration;
+using Mongo.Migration.Startup;
+using Mongo.Migration.Startup.DotNetCore;
 using NoSqlModels;
 
 namespace MongoDbTest;
@@ -34,8 +39,30 @@ internal class MongoDbTester
         //var pingRes = await db.CheckConnectivity(userInfo).ConfigureAwait(false);
         //var dbListRes = await db.GetDatabases(userInfo).ConfigureAwait(false);
 
+        RunMigrationTests();
+
         //await RunPluginTest().ConfigureAwait(false);
         await RunPhonebookTests().ConfigureAwait(false);
+    }
+
+    internal void RunMigrationTests()
+    {
+        MongoMigrationSettings options = new()
+        {
+            ConnectionString = configuration.GetValue<string>("MongoDbConnectionString"),
+            Database = configuration.GetValue<string>("DatabaseName"), 
+            DatabaseMigrationVersion = new Mongo.Migration.Documents.DocumentVersion("0.0.0")
+        };
+
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Services.AddMigration(options);
+
+        using IHost host = builder.Build();
+
+        var migration = host.Services.GetRequiredService<IMongoMigration>();
+        migration.Run();
+
+        //host.Run();
     }
 
     internal async Task RunPluginTest()
