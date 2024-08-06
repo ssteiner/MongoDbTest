@@ -24,7 +24,7 @@ public class PhoneBookContact : IIdItem
 
     public List<string> SecretaryIds { get; set; }
 
-    public string ManagerId { get; set; }
+    public string? ManagerId { get; set; }
 
     [DependencyField(nameof(ManagerId))]
     public PhoneBookContact Manager { get; set; }
