@@ -7,26 +7,50 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MongoDbTest", "MongoDbTest\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NoSqlModels", "NoSqlModels\NoSqlModels.csproj", "{84EA7AB5-87CB-497E-A656-F91E3B85E39E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoDbEntitiesTest", "MongoDbEntitiesTest\MongoDbEntitiesTest.csproj", "{E2236E8D-6322-4D76-B970-54133249A169}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MongoDbEntitiesTest", "MongoDbEntitiesTest\MongoDbEntitiesTest.csproj", "{E2236E8D-6322-4D76-B970-54133249A169}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Mongo.Migration", "..\Mongo.Migration-master\Mongo.Migration\Mongo.Migration.csproj", "{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Debug|x64.Build.0 = Debug|Any CPU
 		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Release|x64.ActiveCfg = Release|Any CPU
+		{5A9D8F2E-393F-4EFF-86EB-BD4762EAAE71}.Release|x64.Build.0 = Release|Any CPU
 		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Debug|x64.Build.0 = Debug|Any CPU
 		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Release|x64.ActiveCfg = Release|Any CPU
+		{84EA7AB5-87CB-497E-A656-F91E3B85E39E}.Release|x64.Build.0 = Release|Any CPU
 		{E2236E8D-6322-4D76-B970-54133249A169}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E2236E8D-6322-4D76-B970-54133249A169}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2236E8D-6322-4D76-B970-54133249A169}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E2236E8D-6322-4D76-B970-54133249A169}.Debug|x64.Build.0 = Debug|Any CPU
 		{E2236E8D-6322-4D76-B970-54133249A169}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E2236E8D-6322-4D76-B970-54133249A169}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2236E8D-6322-4D76-B970-54133249A169}.Release|x64.ActiveCfg = Release|Any CPU
+		{E2236E8D-6322-4D76-B970-54133249A169}.Release|x64.Build.0 = Release|Any CPU
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Debug|Any CPU.Build.0 = Debug|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Debug|x64.ActiveCfg = Debug|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Debug|x64.Build.0 = Debug|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Release|Any CPU.ActiveCfg = Release|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Release|Any CPU.Build.0 = Release|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Release|x64.ActiveCfg = Release|x64
+		{E6BBD7FB-EC3F-464A-BA2E-02B1446FD778}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
