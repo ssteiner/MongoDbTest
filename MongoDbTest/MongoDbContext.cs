@@ -93,6 +93,10 @@ internal class MongoDbContext
                 .SetSerializer(new EnumerableInterfaceImplementerSerializer<List<string>, string>(
                     new StringSerializer(BsonType.ObjectId)));
 
+            cm.MapProperty(x => x.SecretaryIds)
+                .SetSerializer(new EnumerableInterfaceImplementerSerializer<List<string>, string>(
+                    new StringSerializer(BsonType.ObjectId)));
+
             cm.MapMember(x => x.Numbers).SetSerializer(
                 new EnumerableInterfaceImplementerSerializer<List<PhoneBookContactNumber>, PhoneBookContactNumber>(
                     BsonSerializer.LookupSerializer<PhoneBookContactNumber>()));
