@@ -243,15 +243,7 @@ internal class MongoDbContext
             var fileInfo = files.FirstOrDefault();
             if (fileInfo == null)
                 return ObjectNotFoundError<AudioFileStorage>(fileKey);
-            //result.Result = await ReadAudioFile(fileInfo, bucket, context).ConfigureAwait(false);
-            result.Result = new AudioFileStorage
-            {
-                FileName = fileInfo.Filename,
-                AudioType = type, Id = fileInfo.Id.ToString(),
-                UploadDate = fileInfo.UploadDateTime,
-                UploadedBy = fileInfo.Metadata["uploadedBy"].AsString
-            };
-            result.Result.Contents = await bucket.DownloadAsBytesAsync(fileInfo.Id).ConfigureAwait(false);
+            result.Result = await ReadAudioFile(fileInfo, bucket, context).ConfigureAwait(false);
             result.IsSuccess = true;
             return result;
         }, userInfo);

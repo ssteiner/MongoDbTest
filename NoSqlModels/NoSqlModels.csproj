@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="GenericOperationResult.cs" />
+    <Compile Remove="IDatabaseContext.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ToolsV4-std" Version="1.1.83" />
   </ItemGroup>
 
