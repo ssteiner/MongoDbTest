@@ -23,6 +23,7 @@
     <PackageReference Include="GenericProvisioningLib" Version="1.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.0" />
     <PackageReference Include="MongoDB.Driver" Version="2.28.0" />
+    <PackageReference Include="MongoDB.Driver.GridFS" Version="2.28.0" />
     <PackageReference Include="ObjectDiffUtilsNg" Version="1.1.6" />
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.4.3" />
     <PackageReference Include="ToolsV4-std" Version="1.1.83" />

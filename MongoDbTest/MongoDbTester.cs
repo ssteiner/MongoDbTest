@@ -39,10 +39,184 @@ internal class MongoDbTester
         //var pingRes = await db.CheckConnectivity(userInfo).ConfigureAwait(false);
         //var dbListRes = await db.GetDatabases(userInfo).ConfigureAwait(false);
 
+        await RunAudioFileTest().ConfigureAwait(false);
+
         RunMigrationTests();
 
         //await RunPluginTest().ConfigureAwait(false);
         await RunPhonebookTests().ConfigureAwait(false);
+    }
+
+    internal async Task RunAudioFileTest()
+    {
+        var ownerId = "owner/1";
+        List<AudioFileStorage> itemsToDelete = [];
+        try
+        {
+            AudioFileStorage audioFile1, audioFile2, audioFile3;
+            #region loading files
+            var audioFileName1 = configuration.GetValue<string>("AudioFile1");
+            if (File.Exists(audioFileName1))
+            {
+                audioFile1 = new AudioFileStorage
+                {
+                    FileName = Path.GetFileName(audioFileName1),
+                    AudioType = AudioFileType.Audio1,
+                    Contents = File.ReadAllBytes(audioFileName1)
+                };
+            }
+            else
+            {
+                Log($"Unable to load audio file 1, unable to run test", 1);
+                return;
+            }
+            var audioFileName2 = configuration.GetValue<string>("AudioFile2");
+            if (File.Exists(audioFileName2))
+            {
+                audioFile2 = new AudioFileStorage
+                {
+                    FileName = Path.GetFileName(audioFileName2),
+                    AudioType = AudioFileType.Audio2,
+                    Contents = File.ReadAllBytes(audioFileName2)
+                };
+            }
+            else
+            {
+                Log($"Unable to load audio file 2, unable to run test", 1);
+                return;
+            }
+            var audioFileName3 = configuration.GetValue<string>("AudioFile3");
+            if (File.Exists(audioFileName3))
+            {
+                audioFile3 = new AudioFileStorage
+                {
+                    FileName = Path.GetFileName(audioFileName3),
+                    AudioType = AudioFileType.Audio3,
+                    Contents = File.ReadAllBytes(audioFileName3)
+                };
+            }
+            else
+            {
+                Log($"Unable to load audio file 3, unable to run test", 1);
+                return;
+            }
+            #endregion
+
+            var addRes = await db.AddAudioFile(ownerId, AudioFileType.Audio1, audioFile1, userInfo).ConfigureAwait(false);
+            if (!addRes.IsSuccess)
+            {
+                Log($"Unable to add audio file 1: {addRes}", 2);
+                return;
+            }
+            itemsToDelete.Add(audioFile1);
+            var getRes = await db.GetAudioFile(ownerId, AudioFileType.Audio1, userInfo).ConfigureAwait(false);
+            if (!getRes.IsSuccess)
+            {
+                Log($"Unable to extract audio file 2: {getRes}", 2);
+                return;
+            }
+            if (!audioFile1.Contents.SequenceEqual(getRes.Result.Contents))
+                Log($"Extracted audio file doesn't match local audio file", 2);
+            else
+                Log($"Validated correct storage of audio file", 4);
+
+            var getAllRes = await db.GetAudioFiles(ownerId, userInfo).ConfigureAwait(false);
+            if (!getAllRes.IsSuccess)
+            {
+                Log($"Unable to extract all audio files: {getAllRes}", 2);
+                return;
+            }
+            if (getAllRes.Result.Count != 1)
+            {
+                Log($"Number of audio files for {ownerId} doesn't match. Expected: 1, actual: {getAllRes.Result.Count}", 2);
+                return;
+            }
+
+            var bulkAddRes = await db.AddAudioFiles(ownerId, [audioFile2, audioFile3], userInfo).ConfigureAwait(false);
+            if (!bulkAddRes.IsSuccess)
+            {
+                Log($"Unable to add multiple audio files for {ownerId}: {bulkAddRes}", 2);
+                return;
+            }
+            itemsToDelete.Add(audioFile2);
+            itemsToDelete.Add(audioFile3);
+
+            getAllRes = await db.GetAudioFiles(ownerId, userInfo).ConfigureAwait(false);
+            if (!getAllRes.IsSuccess)
+            {
+                Log($"Unable to extract all audio files: {getAllRes}", 2);
+                return;
+            }
+            if (getAllRes.Result.Count != 3)
+            {
+                Log($"Number of audio files for {ownerId} doesn't match. Expected: 3, actual: {getAllRes.Result.Count}", 2);
+                return;
+            }
+            else
+            {
+                var loadedFile2 = getAllRes.Result.FirstOrDefault(u => u.FileName == audioFile2.FileName);
+                if (loadedFile2 == null)
+                    Log($"File {audioFile2.FileName} not found", 2);
+                else if (!audioFile2.Contents.SequenceEqual(loadedFile2.Contents))
+                    Log($"Extracted audio file {loadedFile2.FileName} doesn't match local audio file", 2);
+                else
+                    Log($"Validated correct storage of audio file {loadedFile2.FileName}", 4);
+                var loadedFile3 = getAllRes.Result.FirstOrDefault(u => u.FileName == audioFile3.FileName);
+                if (loadedFile3 == null)
+                    Log($"File {audioFile3.FileName} not found", 2);
+                else if (!audioFile3.Contents.SequenceEqual(loadedFile3.Contents))
+                    Log($"Extracted audio file {loadedFile3.FileName} doesn't match local audio file", 2);
+                else
+                    Log($"Validated correct storage of audio file {loadedFile3.FileName}", 4);
+            }
+
+            var deleteRes = await db.RemoveAudioFile(ownerId, AudioFileType.Audio1, userInfo).ConfigureAwait(false);
+            if (!deleteRes.IsSuccess)
+            {
+                Log($"Unable to remove audio file {audioFile1.AudioType}: {deleteRes}", 2);
+                return;
+            }
+            itemsToDelete.Remove(audioFile1);
+            Log($"Successfully deleted audio file {audioFile1.AudioType}", 4);
+
+            getRes = await db.GetAudioFile(ownerId, AudioFileType.Audio1, userInfo).ConfigureAwait(false);
+            if (!getRes.IsSuccess)
+                Log($"Audio file {audioFile1.AudioType} is no longer present", 4);
+            else
+                Log($"Audio file {audioFile1.AudioType} is still present after delete", 2);
+
+            var bulkDeleteRes = await db.RemoveAudioFiles(ownerId, userInfo).ConfigureAwait(false);
+            if (!bulkDeleteRes.IsSuccess)
+            {
+                Log($"Unable to remove all audio files from {ownerId}: {bulkDeleteRes}", 2);
+                return;
+            }
+            itemsToDelete.Remove(audioFile2);
+            itemsToDelete.Remove(audioFile3);
+
+            getAllRes = await db.GetAudioFiles(ownerId, userInfo).ConfigureAwait(false);
+            if (!getAllRes.IsSuccess)
+            {
+                Log($"Unable to extract all audio files: {getAllRes}", 2);
+                return;
+            }
+            if (getAllRes.Result.Count != 0)
+            {
+                Log($"Number of audio files for {ownerId} doesn't match. Expected: 0, actual: {getAllRes.Result.Count}", 2);
+                return;
+            }
+        }
+        finally
+        {
+            foreach (var audioFile in itemsToDelete)
+            {
+                var deleteRes = await db.RemoveAudioFile(ownerId, audioFile.AudioType, userInfo).ConfigureAwait(false);
+                if (deleteRes.IsSuccess)
+                    Log($"Successfully removed audio file {audioFile.AudioType} from {ownerId}", 4);
+                else
+                    Log($"Unable to remove audio file {audioFile.AudioType} from {ownerId}", 2);
+            }
+        }
     }
 
     internal void RunMigrationTests()

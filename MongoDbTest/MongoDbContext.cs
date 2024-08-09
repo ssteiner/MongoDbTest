@@ -7,6 +7,7 @@ using MongoDB.Bson.Serialization.IdGenerators;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
+using MongoDB.Driver.GridFS;
 using MongoDB.Driver.Linq;
 using MongoDbTest.Conventions;
 using MongoDbTest.Extensions;
@@ -217,6 +218,180 @@ internal class MongoDbContext
             return result;
         }
     }
+
+    #region file storage
+
+    private static GridFSBucket GetAudioFilesBucket(MongoDatabaseContext context) => new(context.Database, new GridFSBucketOptions { BucketName = "audioFiles" });
+
+    public async Task<IOperationResult<AudioFileStorage>> GetAudioFile(string ownerId, AudioFileType type, IUserInformation userInfo)
+    {
+        return await PerformDatabaseOperationAsync(async context =>
+        {
+            var result = new GenericOperationResult<AudioFileStorage>();
+            var audioFiles = context.AccessibleObjects<AudioFileStorage>(true);
+
+            var filter = Builders<GridFSFileInfo>.Filter.And(
+                Builders<GridFSFileInfo>.Filter.Eq("metadata.ownerId", ownerId),
+                Builders<GridFSFileInfo>.Filter.Eq("metadata.audioType", type));
+
+            var bucket = GetAudioFilesBucket(context);
+            using var cursor = await bucket.FindAsync(filter).ConfigureAwait(false);
+            var files = await cursor.ToListAsync().ConfigureAwait(false);
+
+            var fileKey = GetAudioFileId(ownerId, type);
+
+            var fileInfo = files.FirstOrDefault();
+            if (fileInfo == null)
+                return ObjectNotFoundError<AudioFileStorage>(fileKey);
+            //result.Result = await ReadAudioFile(fileInfo, bucket, context).ConfigureAwait(false);
+            result.Result = new AudioFileStorage
+            {
+                FileName = fileInfo.Filename,
+                AudioType = type, Id = fileInfo.Id.ToString(),
+                UploadDate = fileInfo.UploadDateTime,
+                UploadedBy = fileInfo.Metadata["uploadedBy"].AsString
+            };
+            result.Result.Contents = await bucket.DownloadAsBytesAsync(fileInfo.Id).ConfigureAwait(false);
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    private static async Task<AudioFileStorage> ReadAudioFile(GridFSFileInfo fileInfo, GridFSBucket bucket, MongoDatabaseContext context)
+    {
+        AudioFileStorage file = new()
+        {
+            FileName = fileInfo.Filename,
+            Id = fileInfo.Id.ToString(),
+            UploadDate = fileInfo.UploadDateTime,
+            UploadedBy = fileInfo.Metadata["uploadedBy"].AsString,
+            Contents = await bucket.DownloadAsBytesAsync(fileInfo.Id).ConfigureAwait(false)
+        };
+        var audioType = fileInfo.Metadata["audioType"].AsInt32;
+        file.AudioType = (AudioFileType)audioType;
+        return file;
+    }
+
+    public async Task<IOperationResult<List<AudioFileStorage>>> GetAudioFiles(string ownerId, IUserInformation userInfo)
+    {
+        return await PerformDatabaseOperationAsync(async context =>
+        {
+            IOperationResult<List<AudioFileStorage>> result = new GenericOperationResult<List<AudioFileStorage>>();
+            var bucket = GetAudioFilesBucket(context);
+            var filter = Builders<GridFSFileInfo>.Filter.Eq("metadata.ownerId", ownerId);
+            using var cursor = await bucket.FindAsync(filter).ConfigureAwait(false);
+            var files = await cursor.ToListAsync().ConfigureAwait(false);
+            result.Result = [];
+            foreach (var file in files)
+            {
+                result.Result.Add(await ReadAudioFile(file, bucket, context).ConfigureAwait(false));
+            }
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    public async Task<IOperationResult> AddAudioFile(string ownerId, AudioFileType type, AudioFileStorage audioFile, IUserInformation userInfo)
+    {
+        return await PerformDatabaseOperationAsync(async context =>
+        {
+            var result = new GenericOperationResult();
+            audioFile.AudioType = type;
+            await AddAudioFile(ownerId, audioFile, context).ConfigureAwait(false);
+            //await context.Session.SaveChangesAsync().ConfigureAwait(false);
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    private static async Task AddAudioFile(string ownerId, AudioFileStorage audioFile, MongoDatabaseContext context)
+    {
+        audioFile.UploadedBy = context.User.UserId;
+        audioFile.UploadDate = DateTime.Now;
+
+        var filter = Builders<GridFSFileInfo>.Filter.And(
+            Builders<GridFSFileInfo>.Filter.Eq("metadata.ownerId", ownerId),
+            Builders<GridFSFileInfo>.Filter.Eq("metadata.audioType", audioFile.AudioType));
+
+        var bucket = GetAudioFilesBucket(context);
+        using var cursor = await bucket.FindAsync(filter).ConfigureAwait(false);
+        var files = await cursor.ToListAsync().ConfigureAwait(false);
+        var options = new GridFSUploadOptions
+        {
+            Metadata = new BsonDocument
+            {
+                { "uploadedBy", context.User.UserId },
+                { "audioType", audioFile.AudioType },
+                { "ownerId", ownerId }
+            }
+        };
+        var id = await bucket.UploadFromBytesAsync(audioFile.FileName, audioFile.Contents, options).ConfigureAwait(false);
+        audioFile.Id = id.ToString();
+        if (files.Any())
+        {
+            await bucket.DeleteAsync(files.First().Id).ConfigureAwait(false);
+        }
+    }
+
+    public async Task<IOperationResult> AddAudioFiles(string ownerId, List<AudioFileStorage> audioFiles, IUserInformation userInfo)
+    {
+        return await PerformDatabaseOperationAsync(async context =>
+        {
+            var result = new GenericOperationResult();
+            foreach (var audioFile in audioFiles)
+            {
+                await AddAudioFile(ownerId, audioFile.AudioType, audioFile, userInfo).ConfigureAwait(false);
+            }
+            //await context.Session.SaveChangesAsync().ConfigureAwait(false);
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    public async Task<IOperationResult> RemoveAudioFile(string ownerId, AudioFileType type, IUserInformation userInfo)
+    {
+        return await PerformDatabaseOperationAsync(async context =>
+        {
+            var result = new GenericOperationResult();
+            var bucket = GetAudioFilesBucket(context);
+            var filter = Builders<GridFSFileInfo>.Filter.And(
+                Builders<GridFSFileInfo>.Filter.Eq("metadata.ownerId", ownerId),
+                Builders<GridFSFileInfo>.Filter.Eq("metadata.audioType", type));
+            using var cursor = await bucket.FindAsync(filter).ConfigureAwait(false);
+            var files = await cursor.ToListAsync().ConfigureAwait(false);
+            foreach (var file in files)
+            {
+                await bucket.DeleteAsync(file.Id).ConfigureAwait(false);
+            }
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    public async Task<IOperationResult<int>> RemoveAudioFiles(string ownerId, IUserInformation userInfo)
+    {
+        return await PerformDatabaseOperationAsync(async context =>
+        {
+            IOperationResult<int> result = new GenericOperationResult<int>();
+            var bucket = GetAudioFilesBucket(context);
+            var filter = Builders<GridFSFileInfo>.Filter.Eq("metadata.ownerId", ownerId);
+            using var cursor = await bucket.FindAsync(filter).ConfigureAwait(false);
+            var files = await cursor.ToListAsync().ConfigureAwait(false);
+            foreach (var file in files)
+            {
+                await bucket.DeleteAsync(file.Id).ConfigureAwait(false);
+            }
+            result.IsSuccess = true;
+            return result;
+        }, userInfo);
+    }
+
+    private static string GetAudioFileId(string ownerId, AudioFileType? type = null)
+    {
+        return $"audioFileStorages/{ownerId}{(type != null ? $"/{type}" : string.Empty)}";
+    }
+
+    #endregion
 
     #region generic operations
 
