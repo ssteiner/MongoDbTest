@@ -912,7 +912,7 @@ internal class MongoDbTester
         {
             SearchParameters =
             [ // gets us contact 1
-                new() { FieldName = nameof(PhoneBookContact.ManagerId), FieldOperator = ComparisonOperator.NotEqualTo, FieldValue = manager.Id }
+                new() { FieldName = nameof(PhoneBookContact.ManagerId), FieldOperator = ComparisonOperator.EqualTo, FieldValue = manager.Id }
             ]
         };
         searchRes = db.SearchObjects<PhoneBookContact>(searchParameters, userInfo);

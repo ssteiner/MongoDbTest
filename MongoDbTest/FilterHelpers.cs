@@ -7,6 +7,7 @@ using NoSqlModels;
 using System.Linq.Dynamic.Core;
 using System.Linq.Dynamic.Core.Exceptions;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace MongoDbTest;
@@ -403,12 +404,15 @@ internal static class FilterHelpers
                             filters.Add(builder.Gte(p.FieldName, p.FieldValueString));
                             break;
                         case NoSqlModels.ComparisonOperator.IsEmpty:
-                            filters.Add(builder.Eq(p.FieldName, MongoDB.Bson.BsonNull.Value));
+                            var propType2 = GetPropertyType<T>(p.FieldName);
+                            //filters.Add(builder.Eq(p.FieldName, MongoDB.Bson.BsonNull.Value));
+                            filters.Add(builder.Eq(p.FieldName, propType2.IsValueType ? Activator.CreateInstance(propType2) : null));
                             break;
                         case NoSqlModels.ComparisonOperator.IsNotEmpty:
                             //builder.Exists(p.FieldName, true);
-                            //filters.Add(builder.Not(builder.Eq(p.FieldName, MongoDB.Bson.BsonNull.Value)));
-                            filters.Add(builder.Ne(p.FieldName, MongoDB.Bson.BsonNull.Value));
+                            //filters.Add(builder.Ne(p.FieldName, MongoDB.Bson.BsonNull.Value));
+                            var propType = GetPropertyType<T>(p.FieldName);
+                            filters.Add(builder.Ne(p.FieldName, propType.IsValueType ? Activator.CreateInstance(propType) : null));
                             break;
                     }
                 }
@@ -438,6 +442,17 @@ internal static class FilterHelpers
         //    return items.Where(expressions.First());
         //}
         //return items;
+    }
+
+    private static Dictionary<string, Type> typeCache = [];
+
+    private static Type GetPropertyType<T>(string propertyName)
+    {
+        if (typeCache.TryGetValue($"{typeof(T).Name}_{propertyName}", out var myType))
+            return myType;
+        myType = typeof(T).GetProperty(propertyName).PropertyType;
+        typeCache.TryAdd($"{typeof(T).Name}_{propertyName}", myType);
+        return myType;
     }
 
     private static bool IsAllowed<T>(NoSqlModels.ComparisonOperator? op, string fieldName)
