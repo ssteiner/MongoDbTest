@@ -14,6 +14,10 @@ public class PhoneBookCategory : IIdItem, INamedItem, IDescriptionItem
     public List<string> PhoneBookIds { get; set; }
 
     public TestObject SubProp { get; set; }
+
+    public bool? BoolValue { get; set; }
+
+    public int IntValue { get; set; }
 }
 
 public class PhoneBookCategorySearchParameters : GenericSearchParameters
